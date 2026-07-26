@@ -1,6 +1,6 @@
 {
   "name": "subtierwebsite",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "中文 Minecraft 1.9+ PvP Subtier 榜单网站",
   "main": "dist/server/server.js",
   "engines": {
