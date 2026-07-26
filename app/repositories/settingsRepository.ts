@@ -70,10 +70,14 @@ export class SettingsRepository extends BaseRepository {
     const tenant = value['tenant'];
     return {
       clientId: typeof clientId === 'string' ? clientId : DEFAULT_SETTINGS.oauthMicrosoft.clientId,
-      tenant:
-        typeof tenant === 'string' && tenant.length > 0
-          ? tenant
-          : DEFAULT_SETTINGS.oauthMicrosoft.tenant
+      /*
+       * 与 clientId 同一个形状：只有「存的根本不是字符串」才退回默认值。
+       *
+       * 原来这里对空串也退回默认，而当时的默认值是 'common'——于是「在面板上把
+       * 租户清空」这个动作根本存不下来，读回来又变成 'common'，把 MS_OAUTH_TENANT
+       * 挡在外面。空串是合法的「未配置」，必须能原样存取。
+       */
+      tenant: typeof tenant === 'string' ? tenant : DEFAULT_SETTINGS.oauthMicrosoft.tenant
     };
   }
 }

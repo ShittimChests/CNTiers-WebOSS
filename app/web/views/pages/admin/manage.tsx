@@ -1,3 +1,4 @@
+import type { TenantResolution } from '../../../../services/settingsService.js';
 import type { Category, User } from '../../../../types/domain.js';
 import type { PageProps } from '../../../../types/view.js';
 import { Checkbox, Field, Form } from '../../components/Form.js';
@@ -105,13 +106,23 @@ export interface AdminSettingsProps extends PageProps {
   /** client_secret 只认环境变量，这里只报告是否就绪。 */
   microsoftSecretPresent: boolean;
   microsoftReady: boolean;
+  /** 实际生效的租户及其来源——面板里填的未必是生效的那个。 */
+  tenantInEffect: TenantResolution;
 }
+
+/** 租户来源的人话说明。 */
+const TENANT_SOURCE_NOTE: Record<TenantResolution['source'], string> = {
+  panel: '来自本页设置',
+  env: '来自环境变量 MS_OAUTH_TENANT，已接管本页填写的值',
+  default: '默认值，未做租户限制'
+};
 
 export function AdminSettingsPage({
   ctx,
   settings,
   microsoftSecretPresent,
-  microsoftReady
+  microsoftReady,
+  tenantInEffect
 }: AdminSettingsProps) {
   return (
     <BaseLayout title="站点设置" ctx={ctx}>
@@ -150,8 +161,14 @@ export function AdminSettingsPage({
                 label="Tenant"
                 value={settings.oauthMicrosoft.tenant}
                 maxlength={64}
-                hint="通常填 common"
+                placeholder="common"
+                hint="留空、common、organizations、consumers 都表示不限制租户；填具体租户 ID 或域名才是限制。"
               />
+
+              <p class="admin__hint">
+                当前生效的租户：<code>{tenantInEffect.value}</code>（
+                {TENANT_SOURCE_NOTE[tenantInEffect.source]}）。
+              </p>
 
               <p class="admin__hint">
                 Client secret 只从环境变量 <code>MS_OAUTH_CLIENT_SECRET</code> 读取，不在此处填写、

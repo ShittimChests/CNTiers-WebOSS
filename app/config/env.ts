@@ -31,7 +31,9 @@ const envSchema = z.object({
 
   MS_OAUTH_CLIENT_ID: optionalText,
   MS_OAUTH_CLIENT_SECRET: optionalText,
-  MS_OAUTH_TENANT: trimmed.default('common'),
+  // 不给默认值：'common' 与「没设置」必须可区分，否则 settingsService 分不清
+  // 「运维要求接受任意租户」和「运维压根没配」，兜底逻辑也就无从谈起
+  MS_OAUTH_TENANT: optionalText,
 
   DATA_DIR: optionalText,
   FORCE_SQLITE: optionalText
@@ -169,10 +171,11 @@ export const config = {
     }
   },
 
+  // 三个字段统一用空串表示「未设置」，交给 settingsService 与后台设置合并
   microsoft: {
     clientId: raw.MS_OAUTH_CLIENT_ID ?? '',
     clientSecret: raw.MS_OAUTH_CLIENT_SECRET ?? '',
-    tenant: raw.MS_OAUTH_TENANT
+    tenant: raw.MS_OAUTH_TENANT ?? ''
   }
 } as const;
 

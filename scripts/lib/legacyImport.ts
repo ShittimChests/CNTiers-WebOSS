@@ -393,7 +393,15 @@ export async function importLegacyData(
     oauthEnabled: data.settings.oauthEnabled ?? false,
     oauthMicrosoft: {
       clientId: data.settings.oauthMicrosoft?.clientId ?? '',
-      tenant: data.settings.oauthMicrosoft?.tenant ?? 'common'
+      /*
+       * 缺这个字段时写空串而不是 'common'：空串才是「未配置」，
+       * 写 'common' 会在新库里造出一个非空值去遮蔽 MS_OAUTH_TENANT。
+       *
+       * 旧数据里**已有**的 'common' 仍然原样导入（这里只管字段缺失的情况）——
+       * 它不需要在导入时被特殊处理，因为 settingsService.resolveTenant 已经知道
+       * 'common' 是受众选择器而非租户限制，不会让它挡住环境变量。
+       */
+      tenant: data.settings.oauthMicrosoft?.tenant ?? ''
     }
   };
   for (const [key, value] of Object.entries(settingsToWrite)) {

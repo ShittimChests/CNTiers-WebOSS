@@ -144,6 +144,29 @@ PRG（Location 里回显的是提交者自己给的邮箱，不构成信道）�
 邮箱是否注册过，确定性、无需计时，比 `/forgot` 那条还好用。剩余次数只对真实存在的
 账号才有意义，展示它就是判据。次数仍留在 `AppError` 的 meta 里，可用于日志。
 
+**「未配置」只能用空串表示。** 凡是「后台设置 + 环境变量」两处合并的字段
+（目前是 `oauthMicrosoft` 的 `clientId` 与 `tenant`），未配置态都必须是空串，
+因为合并靠的是 `||`——给它一个非空的默认值就等于把兜底那一侧永久短路掉。
+`tenant` 上真的发生过：`DEFAULT_SETTINGS`、`settingsSchema`、`legacyImport` 各自
+给了一份 `'common'`，于是 `MS_OAUTH_TENANT` 从来没有生效过（旧站
+`src/services/oauthService.js:21` 同款缺陷，重写时忠实沿用了）。
+
+**租户合并不是 `panel || env`，也不是 `env || panel`。** 规则在
+`services/settingsService.ts` 的 `resolveTenant()`：**谁指定了具体租户就听谁的，
+面板优先；都没指定就保留受众选择器。** 依据是 Azure 自己的分类——`common` /
+`organizations` / `consumers` 是**受众选择器**，不构成租户限制，只有租户 ID 或域名
+才把登录锁在一个租户里，所以前者不该挡住后者。反过来写（env 优先）更糟：
+`.env.example` 里长期写着 `MS_OAUTH_TENANT=common`，照抄过的部署会用它把面板上那个
+具体租户覆盖掉，那是在**放宽**限制。这条路径上唯一不可退让的性质是**单调不放宽**：
+对任何一组输入，结果都不得比旧的「面板值优先」更宽松，
+`tests/unit/oauthTenant.test.ts` 逐组合守着它。
+
+租户是安全控制项而不是普通配置：`tenant=common` 配合 `loginWithMicrosoft` 里
+「按邮箱匹配已有账号」那条兜底，等于允许任何租户的人把自己的 `mail` 设成站内某个
+用户的邮箱后以其身份登录。因此面板上必须显示**实际生效**的租户与它的来源
+（`settingsService.tenantInEffect()`），被环境变量接管时尤其要说出来——
+一个被静默覆盖的输入框就是在撒谎。
+
 ### 错误与文案
 
 `AppError(code, { meta })` 是唯一的业务异常类型，码表在 `errors/codes.ts`
@@ -245,6 +268,9 @@ CSP 已收紧到 `style-src 'self'`（零内联样式，动态值走属性如 `<
   `upgrade-insecure-requests`。三件事都不报错，所以按 `SESSION_SECRET` 的先例拒绝启动。
 - `EMAIL_FROM`：必须是 RFC 5322 形式且域名已在 Resend 验证，否则 4xx。
 - `MS_OAUTH_CLIENT_SECRET`：只从环境变量读，不入库、不在后台表单出现。
+- **`MS_OAUTH_TENANT`：留空即可，填了就是「把登录限制在这个租户」。** 它与后台
+  `/admin/settings` 里的 Tenant 字段合并，规则见下面「租户合并」一节——那不是普通的
+  `a || b`，写成 `a || b` 的那个版本让这个变量从来没有生效过。
 - `DATA_DIR`：数据目录，默认 `<cwd>/data`。旧站也支持（用于隔离测试）。
 - `FORCE_SQLITE=1`：忽略 `db-config.json` 强制用 SQLite，救急用。
 

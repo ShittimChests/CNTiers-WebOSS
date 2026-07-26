@@ -201,9 +201,12 @@ adminRouter.post('/admin/categories/delete', requireAdminOrAbove, (req, res, nex
 adminRouter.get('/admin/settings', requireSuperAdmin, (_req, res, next) => {
   void (async () => {
     try {
-      const [settings, microsoftReady] = await Promise.all([
+      const [settings, microsoftReady, tenantInEffect] = await Promise.all([
         settingsService.get(),
-        settingsService.isMicrosoftEnabled()
+        settingsService.isMicrosoftEnabled(),
+        // 面板里那个输入框未必是实际生效的值：MS_OAUTH_TENANT 指定了具体租户时
+        // 会接管它。不显式报出来的话，这个字段就是在撒谎
+        settingsService.tenantInEffect()
       ]);
 
       renderPage(
@@ -213,7 +216,8 @@ adminRouter.get('/admin/settings', requireSuperAdmin, (_req, res, next) => {
           settings,
           // secret 只从环境变量读，这里只报告是否就绪
           microsoftSecretPresent: config.microsoft.clientSecret.length > 0,
-          microsoftReady
+          microsoftReady,
+          tenantInEffect
         })
       );
     } catch (error) {

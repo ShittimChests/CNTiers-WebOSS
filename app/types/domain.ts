@@ -114,5 +114,12 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   registrationEnabled: false,
   oauthEnabled: false,
-  oauthMicrosoft: { clientId: '', tenant: 'common' }
+  /*
+   * 两个字段的未配置态都必须是**空串**，tenant 尤其不能写回 'common'。
+   *
+   * 它们都会在 settingsService 里与环境变量合并，而一个非空的默认值会让
+   * 「环境变量兜底」永久失效：MS_OAUTH_TENANT 就是这么变成死旋钮的
+   * （见 settingsService.resolveTenant 的说明）。
+   */
+  oauthMicrosoft: { clientId: '', tenant: '' }
 };

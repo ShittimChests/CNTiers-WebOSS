@@ -163,7 +163,9 @@ export const settingsSchema = z.object({
   registrationEnabled: checkbox,
   oauthEnabled: checkbox,
   oauthClientId: trimmed.max(128).optional().default(''),
-  oauthTenant: trimmed.max(64).optional().default('common')
+  // 默认空串而不是 'common'：非空默认值会遮蔽 MS_OAUTH_TENANT
+  // （见 services/settingsService.ts 的 resolveTenant）
+  oauthTenant: trimmed.max(64).optional().default('')
 });
 
 /**

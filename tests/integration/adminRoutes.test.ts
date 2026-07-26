@@ -460,6 +460,20 @@ describe('站点设置', () => {
     expect(html).toContain('尚未就绪');
     expect(html).not.toContain('name="oauthClientSecret"');
   });
+
+  it('页面报出实际生效的租户与它的来源', async () => {
+    /*
+     * 面板里的 Tenant 输入框未必是生效的那个：MS_OAUTH_TENANT 指定了具体租户时会
+     * 接管它。不把生效值显示出来的话，这个字段就是在撒谎——而租户是安全控制项
+     * （tenant=common 意味着接受任意 Azure 租户）。
+     *
+     * 测试环境没设 MS_OAUTH_TENANT，面板也没配，所以应当报「默认值，未做租户限制」。
+     */
+    const agent = await loginAs('Root');
+    const html = (await agent.get('/admin/settings')).text;
+    expect(html).toContain('当前生效的租户');
+    expect(html).toContain('未做租户限制');
+  });
 });
 
 describe('用户管理', () => {
