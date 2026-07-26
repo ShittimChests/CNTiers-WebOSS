@@ -4,7 +4,10 @@ const session = require('express-session');
 
 const { Store } = session;
 
-const DATA_DIR = path.resolve(__dirname, '../../data');
+// 与 dataStore.js 保持一致：允许用 DATA_DIR 覆盖，默认行为不变
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.resolve(__dirname, '../../data');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 
 function nowMs() { return Date.now(); }
