@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <!--
+    像素图标集。全部按 16×16 网格用 rect 拼出，配 shape-rendering="crispEdges"，
+    因此任意整数倍缩放都保持硬边。用 currentColor 以便跟随文字颜色。
+
+    替代旧站的 emoji（👑🥈🥉🧪⇕）：emoji 在各平台形态不一、无法着色，
+    也破坏像素风的一致性。
+  -->
+
+  <symbol id="i-crown" viewBox="0 0 16 16" shape-rendering="crispEdges">
+    <path fill="currentColor" d="M2 5h2v3H2zM7 4h2v4H7zM12 5h2v3h-2zM2 8h12v3H2zM3 11h10v2H3z" />
+  </symbol>
+
+  <symbol id="i-medal-2" viewBox="0 0 16 16" shape-rendering="crispEdges">
+    <path fill="currentColor" d="M5 2h6v2H5zM4 4h8v6H4zM6 10h4v4H6z" />
+  </symbol>
+
+  <symbol id="i-medal-3" viewBox="0 0 16 16" shape-rendering="crispEdges">
+    <path fill="currentColor" d="M5 2h6v2H5zM6 4h4v6H6zM7 10h2v4H7z" />
+  </symbol>
+
+  <!-- 测试服标记：锥形瓶 -->
+  <symbol id="i-flask" viewBox="0 0 16 16" shape-rendering="crispEdges">
+    <path fill="currentColor" d="M6 2h4v2H6zM7 4h2v3H7zM5 7h6v2H5zM4 9h8v4H4zM3 13h10v1H3z" />
+  </symbol>
+
+  <symbol id="i-search" viewBox="0 0 16 16" shape-rendering="crispEdges">
+    <path fill="currentColor" d="M4 2h6v1H4zM3 3h1v6H3zM10 3h1v6h-1zM4 9h6v1H4zM10 10h2v2h-2zM12 12h2v2h-2z" />
+  </symbol>
+
+  <symbol id="i-menu" viewBox="0 0 16 16" shape-rendering="crispEdges">
+    <path fill="currentColor" d="M2 3h12v2H2zM2 7h12v2H2zM2 11h12v2H2z" />
+  </symbol>
+
+  <symbol id="i-close" viewBox="0 0 16 16" shape-rendering="crispEdges">
+    <path fill="currentColor" d="M3 3h2v2H3zM5 5h2v2H5zM7 7h2v2H7zM9 5h2v2H9zM11 3h2v2h-2zM9 9h2v2H9zM11 11h2v2h-2zM5 9h2v2H5zM3 11h2v2H3z" />
+  </symbol>
+
+  <symbol id="i-sort" viewBox="0 0 16 16" shape-rendering="crispEdges">
+    <path fill="currentColor" d="M7 2h2v2H7zM5 4h2v2H5zM9 4h2v2H9zM7 10h2v4H7zM5 10h2v2H5zM9 10h2v2H9z" />
+  </symbol>
+
+  <symbol id="i-sort-desc" viewBox="0 0 16 16" shape-rendering="crispEdges">
+    <path fill="currentColor" d="M7 3h2v7H7zM4 10h2v2H4zM10 10h2v2h-2zM6 12h2v2H6zM8 12h2v2H8z" />
+  </symbol>
+
+  <symbol id="i-sort-asc" viewBox="0 0 16 16" shape-rendering="crispEdges">
+    <path fill="currentColor" d="M7 6h2v7H7zM4 4h2v2H4zM10 4h2v2h-2zM6 2h2v2H6zM8 2h2v2H8z" />
+  </symbol>
+
+  <symbol id="i-check" viewBox="0 0 16 16" shape-rendering="crispEdges">
+    <path fill="currentColor" d="M12 4h2v2h-2zM10 6h2v2h-2zM8 8h2v2H8zM6 10h2v2H6zM4 8h2v2H4zM2 6h2v2H2z" />
+  </symbol>
+
+  <symbol id="i-warn" viewBox="0 0 16 16" shape-rendering="crispEdges">
+    <path fill="currentColor" d="M7 2h2v6H7zM7 10h2v2H7z" />
+  </symbol>
+</svg>

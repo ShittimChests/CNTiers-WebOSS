@@ -1,0 +1,159 @@
+/** 页面外壳：站点头部、导航、页脚。 */
+@layer components {
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-header);
+    border-bottom: 1px solid var(--border);
+
+    /* 不用 backdrop-filter：低端移动设备上模糊是明显的性能负担 */
+    background: var(--bg-1);
+  }
+
+  .site-header__inner {
+    display: flex;
+    gap: var(--space-4);
+    align-items: center;
+    justify-content: space-between;
+    min-height: 3.5rem;
+  }
+
+  /* ---------- 品牌 ---------- */
+
+  .brand {
+    display: inline-flex;
+    gap: var(--space-2);
+    align-items: center;
+    color: var(--text-1);
+    text-decoration: none;
+  }
+
+  .brand__mark {
+    color: var(--gold);
+    font-size: var(--text-sm);
+  }
+
+  .brand__name {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-bold);
+
+    /* 拉开字距让全大写的拉丁字标不显拥挤 */
+    letter-spacing: 0.16em;
+  }
+
+  /* ---------- 导航 ---------- */
+
+  .nav-toggle {
+    display: none;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-2);
+    background: var(--bg-2);
+    color: var(--text-1);
+    cursor: pointer;
+  }
+
+  .site-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    align-items: center;
+  }
+
+  .site-nav__link {
+    color: var(--text-2);
+    font-size: var(--text-sm);
+    text-decoration: none;
+  }
+
+  .site-nav__link:hover {
+    color: var(--text-1);
+  }
+
+  .site-nav__link[aria-current='page'] {
+    color: var(--gold);
+  }
+
+  .site-nav__account {
+    display: inline-flex;
+    gap: var(--space-3);
+    align-items: center;
+    padding-left: var(--space-4);
+    border-left: 1px solid var(--border);
+  }
+
+  .site-nav__logout {
+    display: inline;
+  }
+
+  .role-pill {
+    padding: 0 var(--space-2);
+    border: 1px solid color-mix(in srgb, var(--role-ink) 40%, transparent);
+    border-radius: var(--radius-1);
+    color: var(--role-ink);
+    font-size: var(--text-xs);
+  }
+
+  .role-pill--superadmin {
+    --role-ink: var(--gold);
+  }
+
+  .role-pill--admin {
+    --role-ink: var(--link);
+  }
+
+  .role-pill--user {
+    --role-ink: var(--text-3);
+  }
+
+  /* ---------- 页脚 ---------- */
+
+  .site-footer {
+    margin-top: var(--space-8);
+    padding: var(--space-5) 0;
+    border-top: 1px solid var(--border);
+    color: var(--text-3);
+    font-size: var(--text-xs);
+  }
+
+  .site-footer .container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    justify-content: space-between;
+  }
+
+  /* ---------- 移动端 ---------- */
+
+  @media (width <= 48rem) {
+    .nav-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .site-nav {
+      display: none;
+      flex-direction: column;
+      align-items: stretch;
+      width: 100%;
+      padding-bottom: var(--space-4);
+    }
+
+    .site-nav.is-open {
+      display: flex;
+    }
+
+    .site-header__inner {
+      flex-wrap: wrap;
+    }
+
+    .site-nav__account {
+      padding-top: var(--space-3);
+      padding-left: 0;
+      border-top: 1px solid var(--border);
+      border-left: none;
+    }
+  }
+}

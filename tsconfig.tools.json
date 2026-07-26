@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": [
+    "scripts/**/*.ts",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "*.config.ts",
+    // 测试会间接用到会话与 Express locals 的类型扩展，
+    // 不显式纳入的话这些 declare module 不生效
+    "app/types/*.d.ts"
+  ]
+}

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges">
+  <title>CN Subtiers</title>
+  <rect width="16" height="16" fill="#0F0C16" />
+  <!-- 像素皇冠：三尖 + 冠体 + 底座，格子对齐以保持像素风 -->
+  <rect x="2" y="4" width="2" height="4" fill="#F2C14E" />
+  <rect x="7" y="3" width="2" height="5" fill="#F2C14E" />
+  <rect x="12" y="4" width="2" height="4" fill="#F2C14E" />
+  <rect x="2" y="8" width="12" height="3" fill="#F2C14E" />
+  <rect x="2" y="11" width="12" height="2" fill="#C99A2E" />
+  <!-- 中央钻石镶嵌 -->
+  <rect x="7" y="9" width="2" height="2" fill="#58C7D8" />
+</svg>

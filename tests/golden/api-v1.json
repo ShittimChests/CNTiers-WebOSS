@@ -1,0 +1,615 @@
+{
+  "gamemodes": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/gamemodes"
+    },
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=60",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "gamemodes": [
+        "Axe",
+        "Crystal",
+        "Sword",
+        "Trident Box"
+      ]
+    }
+  },
+  "rankings.default": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/rankings"
+    },
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=60",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "total": 4,
+      "limit": 50,
+      "offset": 0,
+      "players": [
+        {
+          "name": "Carol",
+          "points": 1200,
+          "rank": "SubtierGrandmaster",
+          "position": 1
+        },
+        {
+          "name": "Alice",
+          "points": 900,
+          "rank": "SubtierMaster",
+          "position": 2
+        },
+        {
+          "name": "Bob",
+          "points": 900,
+          "rank": "SubtierMaster",
+          "position": 2
+        },
+        {
+          "name": "Dave",
+          "points": 0,
+          "rank": "Unranked",
+          "position": 4
+        }
+      ]
+    }
+  },
+  "rankings.paged": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/rankings?limit=2&offset=1"
+    },
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=60",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "total": 4,
+      "limit": 2,
+      "offset": 1,
+      "players": [
+        {
+          "name": "Alice",
+          "points": 900,
+          "rank": "SubtierMaster",
+          "position": 2
+        },
+        {
+          "name": "Bob",
+          "points": 900,
+          "rank": "SubtierMaster",
+          "position": 2
+        }
+      ]
+    }
+  },
+  "rankings.offset.beyond": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/rankings?offset=99"
+    },
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=60",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "total": 4,
+      "limit": 50,
+      "offset": 99,
+      "players": []
+    }
+  },
+  "rankings.limit.zero": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/rankings?limit=0"
+    },
+    "status": 400,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "error": "invalid_query",
+      "message": "Too small: expected number to be >=1"
+    }
+  },
+  "rankings.limit.tooLarge": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/rankings?limit=201"
+    },
+    "status": 400,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "error": "invalid_query",
+      "message": "Too big: expected number to be <=200"
+    }
+  },
+  "rankings.limit.notNumber": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/rankings?limit=abc"
+    },
+    "status": 400,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "error": "invalid_query",
+      "message": "Invalid input: expected number, received NaN"
+    }
+  },
+  "rankings.offset.negative": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/rankings?offset=-1"
+    },
+    "status": 400,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "error": "invalid_query",
+      "message": "Too small: expected number to be >=0"
+    }
+  },
+  "gamemode.sword": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/rankings/Sword"
+    },
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=60",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "gamemode": "Sword",
+      "count": 10,
+      "offset": 0,
+      "tiers": {
+        "1": [
+          {
+            "name": "Carol",
+            "points": 1200,
+            "rank": "SubtierGrandmaster",
+            "position": 1,
+            "tier": "HT1"
+          }
+        ],
+        "2": [],
+        "3": [
+          {
+            "name": "Alice",
+            "points": 900,
+            "rank": "SubtierMaster",
+            "position": 2,
+            "tier": "LT3"
+          }
+        ],
+        "4": [
+          {
+            "name": "Bob",
+            "points": 900,
+            "rank": "SubtierMaster",
+            "position": 2,
+            "tier": "HT4"
+          }
+        ],
+        "5": []
+      }
+    }
+  },
+  "gamemode.caseInsensitive": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/rankings/sWoRd"
+    },
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=60",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "gamemode": "Sword",
+      "count": 10,
+      "offset": 0,
+      "tiers": {
+        "1": [
+          {
+            "name": "Carol",
+            "points": 1200,
+            "rank": "SubtierGrandmaster",
+            "position": 1,
+            "tier": "HT1"
+          }
+        ],
+        "2": [],
+        "3": [
+          {
+            "name": "Alice",
+            "points": 900,
+            "rank": "SubtierMaster",
+            "position": 2,
+            "tier": "LT3"
+          }
+        ],
+        "4": [
+          {
+            "name": "Bob",
+            "points": 900,
+            "rank": "SubtierMaster",
+            "position": 2,
+            "tier": "HT4"
+          }
+        ],
+        "5": []
+      }
+    }
+  },
+  "gamemode.count": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/rankings/Sword?count=1"
+    },
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=60",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "gamemode": "Sword",
+      "count": 1,
+      "offset": 0,
+      "tiers": {
+        "1": [
+          {
+            "name": "Carol",
+            "points": 1200,
+            "rank": "SubtierGrandmaster",
+            "position": 1,
+            "tier": "HT1"
+          }
+        ],
+        "2": [],
+        "3": [
+          {
+            "name": "Alice",
+            "points": 900,
+            "rank": "SubtierMaster",
+            "position": 2,
+            "tier": "LT3"
+          }
+        ],
+        "4": [
+          {
+            "name": "Bob",
+            "points": 900,
+            "rank": "SubtierMaster",
+            "position": 2,
+            "tier": "HT4"
+          }
+        ],
+        "5": []
+      }
+    }
+  },
+  "gamemode.countOffset": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/rankings/Sword?count=1&offset=1"
+    },
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=60",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "gamemode": "Sword",
+      "count": 1,
+      "offset": 1,
+      "tiers": {
+        "1": [],
+        "2": [],
+        "3": [],
+        "4": [],
+        "5": []
+      }
+    }
+  },
+  "gamemode.spaceInName": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/rankings/Trident%20Box"
+    },
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=60",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "gamemode": "Trident Box",
+      "count": 10,
+      "offset": 0,
+      "tiers": {
+        "1": [
+          {
+            "name": "Dave",
+            "points": 0,
+            "rank": "Unranked",
+            "position": 4,
+            "tier": "LT1"
+          }
+        ],
+        "2": [],
+        "3": [],
+        "4": [],
+        "5": []
+      }
+    }
+  },
+  "gamemode.emptyBuckets": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/rankings/Crystal"
+    },
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=60",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "gamemode": "Crystal",
+      "count": 10,
+      "offset": 0,
+      "tiers": {
+        "1": [],
+        "2": [],
+        "3": [],
+        "4": [],
+        "5": [
+          {
+            "name": "Alice",
+            "points": 900,
+            "rank": "SubtierMaster",
+            "position": 2,
+            "tier": "HT5"
+          }
+        ]
+      }
+    }
+  },
+  "gamemode.notFound": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/rankings/NoSuchMode"
+    },
+    "status": 404,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "error": "gamemode_not_found",
+      "message": "gamemode 'NoSuchMode' does not exist"
+    }
+  },
+  "gamemode.count.tooLarge": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/rankings/Sword?count=51"
+    },
+    "status": 400,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "error": "invalid_query",
+      "message": "Too big: expected number to be <=50"
+    }
+  },
+  "player.found": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/players/Alice"
+    },
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=60",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "name": "Alice",
+      "points": 900,
+      "rank": "SubtierMaster",
+      "position": 2,
+      "categories": {
+        "Axe": null,
+        "Crystal": "HT5",
+        "Sword": "LT3",
+        "Trident Box": null
+      }
+    }
+  },
+  "player.caseInsensitive": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/players/aLiCe"
+    },
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=60",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "name": "Alice",
+      "points": 900,
+      "rank": "SubtierMaster",
+      "position": 2,
+      "categories": {
+        "Axe": null,
+        "Crystal": "HT5",
+        "Sword": "LT3",
+        "Trident Box": null
+      }
+    }
+  },
+  "player.unparseableTier": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/players/Dave"
+    },
+    "status": 200,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=60",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "name": "Dave",
+      "points": 0,
+      "rank": "Unranked",
+      "position": 4,
+      "categories": {
+        "Axe": null,
+        "Crystal": null,
+        "Sword": null,
+        "Trident Box": "LT1"
+      }
+    }
+  },
+  "player.notFound": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/players/NoSuchPlayer"
+    },
+    "status": 404,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "error": "not_found",
+      "message": "player 'NoSuchPlayer' not found"
+    }
+  },
+  "cors.preflight": {
+    "request": {
+      "method": "OPTIONS",
+      "path": "/api/v1/gamemodes"
+    },
+    "status": 204,
+    "headers": {
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": null
+  },
+  "route.notFound": {
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/nope"
+    },
+    "status": 404,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-max-age": "86400"
+    },
+    "body": {
+      "error": "not_found",
+      "message": "route 'GET /api/v1/nope' does not exist"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+/** 仅供开发态的 /styleguide 页面使用。 */
+@layer components {
+  .sg {
+    --stack-gap: var(--space-6);
+  }
+
+  .sg-note {
+    color: var(--text-2);
+    font-size: var(--text-sm);
+  }
+
+  .sg-rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .sg-num {
+    min-width: 3.5rem;
+    color: var(--text-1);
+    font-family: var(--font-num);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sg-icons {
+    --cluster-gap: var(--space-4);
+  }
+
+  .sg-icon {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: center;
+    color: var(--text-2);
+    font-size: var(--text-xs);
+  }
+
+  .error-detail {
+    max-width: 42rem;
+    color: var(--text-2);
+  }
+}

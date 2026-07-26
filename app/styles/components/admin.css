@@ -1,0 +1,245 @@
+/** 后台页面。 */
+@layer components {
+  .admin {
+    --stack-gap: var(--space-5);
+  }
+
+  .admin--narrow {
+    max-width: 44rem;
+  }
+
+  .admin__head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+
+  .admin__meta {
+    color: var(--text-3);
+    font-size: var(--text-sm);
+  }
+
+  .admin__hint {
+    color: var(--text-2);
+    font-size: var(--text-sm);
+  }
+
+  .admin__form {
+    max-width: 48rem;
+  }
+
+  /* 自适应列数：窄屏单列，宽屏多列，不需要断点 */
+  .admin__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: var(--space-3);
+  }
+
+  .admin__fieldset {
+    padding: var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2);
+  }
+
+  .admin__fieldset legend {
+    padding: 0 var(--space-2);
+    color: var(--text-2);
+    font-size: var(--text-sm);
+  }
+
+  .admin__filter {
+    min-width: 14rem;
+  }
+
+  /* ---------- 条目列表 ---------- */
+
+  .entry-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .entry {
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2);
+    background: var(--bg-0);
+  }
+
+  .entry__head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    margin-bottom: var(--space-3);
+  }
+
+  .entry__position {
+    color: var(--text-3);
+    font-family: var(--font-num);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .entry__player {
+    font-weight: var(--weight-bold);
+    overflow-wrap: anywhere;
+  }
+
+  .entry__points {
+    margin-left: auto;
+    font-family: var(--font-num);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .entry__quick {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: var(--space-3);
+    align-items: end;
+  }
+
+  .entry__details {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border);
+  }
+
+  .entry__details summary {
+    color: var(--link);
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+
+  .entry__full {
+    margin-top: var(--space-4);
+  }
+
+  .entry__delete {
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border);
+  }
+
+  /* ---------- 细分项目列表 ---------- */
+
+  .category-list,
+  .user-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .category {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2);
+    background: var(--bg-0);
+  }
+
+  .category__name {
+    min-width: 8rem;
+    font-weight: var(--weight-bold);
+  }
+
+  .category__rename {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    margin-left: auto;
+  }
+
+  /* ---------- 用户列表 ---------- */
+
+  .user {
+    display: grid;
+    grid-template-columns: minmax(12rem, 1fr) minmax(12rem, 1fr) auto;
+    gap: var(--space-3);
+    align-items: center;
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2);
+    background: var(--bg-0);
+  }
+
+  .user__identity {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .user__name {
+    font-weight: var(--weight-bold);
+    overflow-wrap: anywhere;
+  }
+
+  .user__meta {
+    display: flex;
+    flex-direction: column;
+    color: var(--text-3);
+    font-size: var(--text-xs);
+  }
+
+  .user__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .user__flag {
+    padding: 0 var(--space-2);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-1);
+    color: var(--warn);
+    font-size: var(--text-xs);
+  }
+
+  .user__flag--ms {
+    color: var(--link);
+  }
+
+  /* ---------- 状态提示 ---------- */
+
+  .status {
+    display: inline-flex;
+    gap: var(--space-2);
+    align-items: center;
+    font-size: var(--text-sm);
+  }
+
+  .status--ok {
+    color: var(--ok);
+  }
+
+  .status--warn {
+    color: var(--warn);
+  }
+
+  @media (width <= 48rem) {
+    .user {
+      grid-template-columns: 1fr;
+    }
+
+    .user__actions {
+      justify-content: flex-start;
+    }
+
+    .category__rename {
+      margin-left: 0;
+    }
+  }
+}

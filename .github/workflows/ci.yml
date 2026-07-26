@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint / Typecheck / Build / Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+      # CSP 收紧的守门：视图层不允许出现内联样式或内联事件处理器
+      - name: Assert no inline style/event attributes
+        run: npm run check:inline
+      # 设计 token 的对比度必须持续达标（WCAG 2.1 AA）
+      - name: Assert design token contrast
+        run: npm run check:contrast
+      # 前端产物体积预算
+      - name: Assert asset size budget
+        run: npm run check:budget
+
+  db-matrix:
+    name: Repository suite (${{ matrix.dialect }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dialect: [postgres, mysql]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_USER: ci
+          POSTGRES_DB: subtier_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: ci
+          MYSQL_DATABASE: subtier_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -pci"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run repository tests against ${{ matrix.dialect }}
+        env:
+          TEST_DIALECT: ${{ matrix.dialect }}
+          TEST_PG_URL: postgres://ci:ci@127.0.0.1:5432/subtier_test
+          TEST_MYSQL_URL: mysql://root:ci@127.0.0.1:3306/subtier_test
+        run: npm run test:repo

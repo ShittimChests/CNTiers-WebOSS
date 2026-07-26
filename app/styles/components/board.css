@@ -1,0 +1,211 @@
+/**
+ * 榜单。
+ *
+ * 语义上这是一份有序列表（一维排名、每项结构一致），不是二维数据网格，
+ * 所以用 <ol> 而非 <table>。好处是移动端只需换 grid 区域布局，
+ * 不必像旧站那样把 table 拆成 display:block 再靠 data-label 伪造表头
+ * ——那个方案要在 <th> 与 data-label 两处同步维护同一份列名，
+ * 而且 thead 一旦隐藏，桌面端的表头排序在移动端就彻底失效。
+ */
+@layer components {
+  .board {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: none;
+  }
+
+  /* 列标签行。每行内已有可见结构，对辅助技术隐藏即可 */
+  .board__labels,
+  .board__row {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(8rem, 1fr) 10rem 9rem minmax(10rem, 1.6fr);
+    gap: var(--space-3);
+    align-items: center;
+  }
+
+  .board__labels {
+    padding: 0 var(--space-3) var(--space-2);
+    color: var(--text-3);
+    font-size: var(--text-xs);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .board__row {
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2);
+    background: var(--bg-1);
+
+    /*
+     * 只渲染可视区域内的行。几百条全量输出时首屏 layout/paint 成本大幅下降，
+     * 同时保住 Ctrl+F、锚点与屏幕阅读器——虚拟滚动会毁掉这三样。
+     */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 3.5rem;
+  }
+
+  /* 前三名：左缘一道材质色描边，不做发光也不做 podium */
+  .board__row--top1 {
+    border-left: var(--space-1) solid var(--gold);
+  }
+
+  .board__row--top2 {
+    border-left: var(--space-1) solid var(--tier-iron);
+  }
+
+  .board__row--top3 {
+    border-left: var(--space-1) solid var(--tier-copper);
+  }
+
+  .board__rank {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: center;
+    color: var(--text-2);
+    font-family: var(--font-num);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .board__player {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    font-weight: var(--weight-bold);
+
+    /* 玩家 ID 可能是很长的连续拉丁字符 */
+    overflow-wrap: anywhere;
+  }
+
+  .board__points {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    color: var(--text-1);
+    font-family: var(--font-num);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .board__cats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  /* ---------- 排序条 ---------- */
+
+  /*
+   * 排序是服务端行为（链接改 URL 参数），因此无脚本也完全可用；
+   * 客户端增强只是拦截点击后就地重排 DOM。桌面与移动共用这一个组件，
+   * 排序逻辑只存在服务端一处——旧站为移动端另写了一整套下拉排序，
+   * 选项文案硬编码了三遍且与桌面状态不同步。
+   */
+  .sortbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .sortbar__label {
+    color: var(--text-3);
+    font-size: var(--text-xs);
+  }
+
+  .sortbar__link {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: center;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-1);
+    color: var(--text-2);
+    font-size: var(--text-xs);
+    text-decoration: none;
+  }
+
+  .sortbar__link:hover {
+    border-color: var(--border-strong);
+    color: var(--text-1);
+  }
+
+  .sortbar__link[aria-current='true'] {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+
+  /* ---------- 榜单头部统计 ---------- */
+
+  .board-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: var(--space-5);
+  }
+
+  .board-stats {
+    display: flex;
+    gap: var(--space-5);
+    color: var(--text-2);
+    font-size: var(--text-sm);
+  }
+
+  .board-stats__num {
+    color: var(--text-1);
+    font-family: var(--font-num);
+    font-weight: var(--weight-bold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- 移动端：同一份标记，只换区域布局 ---------- */
+
+  @media (width <= 48rem) {
+    .board__labels {
+      display: none;
+    }
+
+    .board__row {
+      grid-template-areas:
+        'rank player'
+        'rank tier'
+        'points points'
+        'cats cats';
+      grid-template-columns: 3rem 1fr;
+      gap: var(--space-2);
+      contain-intrinsic-size: auto 7rem;
+    }
+
+    .board__rank {
+      grid-area: rank;
+      align-self: start;
+    }
+
+    .board__player {
+      grid-area: player;
+    }
+
+    .board__tier {
+      grid-area: tier;
+    }
+
+    .board__points {
+      grid-area: points;
+      flex-direction: row;
+      gap: var(--space-3);
+      align-items: center;
+    }
+
+    .board__cats {
+      grid-area: cats;
+    }
+  }
+}

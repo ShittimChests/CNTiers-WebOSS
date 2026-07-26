@@ -1,0 +1,106 @@
+/** 认证页与账户中心。 */
+@layer components {
+  /* 单栏窄卡片，居中但不垂直居中——表单变长时不会跳动 */
+  .auth {
+    max-width: 26rem;
+    margin-inline: auto;
+    padding-top: var(--space-6);
+  }
+
+  .auth__title {
+    margin-bottom: var(--space-2);
+  }
+
+  .auth__intro {
+    margin-bottom: var(--space-5);
+    color: var(--text-2);
+    font-size: var(--text-sm);
+  }
+
+  .auth__footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    justify-content: space-between;
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border);
+    font-size: var(--text-sm);
+  }
+
+  .auth__divider {
+    margin: var(--space-4) 0;
+    color: var(--text-3);
+    font-size: var(--text-xs);
+    text-align: center;
+  }
+
+  .auth__resend {
+    margin-top: var(--space-4);
+    font-size: var(--text-sm);
+  }
+
+  /* Microsoft 按钮：四色方块用纯 CSS 画，不引外部图片 */
+  .ms-button {
+    width: 100%;
+  }
+
+  .ms-logo {
+    display: inline-block;
+    width: 0.875rem;
+    height: 0.875rem;
+    background-image:
+      linear-gradient(to right, var(--ms-red) 50%, var(--ms-green) 50%),
+      linear-gradient(to right, var(--ms-blue) 50%, var(--ms-yellow) 50%);
+    background-position: top, bottom;
+    background-repeat: no-repeat;
+    background-size: 100% 50%;
+  }
+
+  /* ---------- 账户中心 ---------- */
+
+  .account {
+    --stack-gap: var(--space-5);
+
+    max-width: 44rem;
+  }
+
+  .account__meta {
+    color: var(--text-3);
+    font-size: var(--text-sm);
+  }
+
+  .account__value {
+    font-family: var(--font-num);
+  }
+
+  .account__hint {
+    max-width: 34rem;
+    color: var(--text-2);
+    font-size: var(--text-sm);
+  }
+
+  .account__form {
+    max-width: 22rem;
+    margin-top: var(--space-4);
+  }
+
+  .settings-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  .verified {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: center;
+    padding: 0 var(--space-2);
+    border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent);
+    border-radius: var(--radius-1);
+    color: var(--ok);
+    font-size: var(--text-xs);
+  }
+}

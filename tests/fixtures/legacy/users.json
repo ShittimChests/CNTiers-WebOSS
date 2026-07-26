@@ -1,0 +1,62 @@
+[
+  {
+    "id": "admin-1",
+    "username": "admin",
+    "email": "admin@local",
+    "passwordHash": "$2a$12$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "role": "SuperAdmin",
+    "emailVerified": true,
+    "verifyToken": null,
+    "verifyExpires": null,
+    "verifyAttempts": 0,
+    "passwordResetToken": null,
+    "passwordResetExpires": null,
+    "resetAttempts": 0,
+    "oauthProvider": null,
+    "oauthSubject": null,
+    "mailCooldown": {},
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "user-legacy-admin",
+    "username": "OldAdmin",
+    "email": "old@example.com",
+    "passwordHash": "$2a$12$bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "role": "admin",
+    "emailVerified": true,
+    "createdAt": "2026-02-01T00:00:00.000Z",
+    "updatedAt": "2026-02-01T00:00:00.000Z"
+  },
+  {
+    "id": "user-no-email",
+    "username": "NoMail",
+    "role": "User",
+    "passwordHash": "$2a$12$cccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "createdAt": "2026-03-01T00:00:00.000Z"
+  },
+  {
+    "id": "user-oauth-only",
+    "username": "MsUser",
+    "email": "MsUser@Example.com",
+    "passwordHash": null,
+    "role": "User",
+    "emailVerified": true,
+    "oauthProvider": "microsoft",
+    "oauthSubject": "ms-subject-123",
+    "verifyToken": "123456",
+    "verifyExpires": "2026-03-01T00:05:00.000Z",
+    "verifyAttempts": 3,
+    "mailCooldown": { "verify": "2026-03-01T00:00:30.000Z" },
+    "createdAt": "2026-03-02T00:00:00.000Z"
+  },
+  {
+    "id": "user-bad-role",
+    "username": "WeirdRole",
+    "email": "weird@example.com",
+    "role": "moderator",
+    "passwordHash": "$2a$12$dddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "emailVerified": false,
+    "createdAt": "2026-03-03T00:00:00.000Z"
+  }
+]

@@ -1,0 +1,46 @@
+[
+  {
+    "id": "entry-1",
+    "position": 1,
+    "player": "Carol",
+    "rank": "SubtierGrandmaster",
+    "points": 1200,
+    "testServer": null,
+    "categories": { "Sword": "HT1", "Axe": "LT2", "Crystal": null },
+    "createdAt": "2026-01-05T00:00:00.000Z",
+    "updatedAt": "2026-01-05T00:00:00.000Z"
+  },
+  {
+    "id": "entry-2",
+    "position": 2,
+    "player": "Alice",
+    "rank": "SubtierMaster",
+    "points": 900,
+    "testServer": "Pico Test #3",
+    "categories": { "Sword": "LT3", "Axe": null, "Crystal": "HT5" },
+    "createdAt": "2026-01-06T00:00:00.000Z",
+    "updatedAt": "2026-01-06T00:00:00.000Z"
+  },
+  {
+    "id": "entry-3",
+    "position": 2,
+    "player": "Bob",
+    "rank": "SubtierMaster",
+    "points": 900,
+    "testServer": null,
+    "categories": { "Sword": "HT4" },
+    "createdAt": "2026-01-07T00:00:00.000Z",
+    "updatedAt": "2026-01-07T00:00:00.000Z"
+  },
+  {
+    "id": "entry-4",
+    "position": 4,
+    "player": "Dave",
+    "rank": "Unranked",
+    "points": 0,
+    "testServer": "",
+    "categories": { "Sword": "不合法的段位", "Trident Box": "LT1" },
+    "createdAt": "2026-01-08T00:00:00.000Z",
+    "updatedAt": "2026-01-08T00:00:00.000Z"
+  }
+]
