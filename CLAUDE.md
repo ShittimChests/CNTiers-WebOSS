@@ -20,6 +20,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > 发件人显示名。都不要改。`tests/golden/api-v1.json` 里的 `SubtierMaster` /
 > `SubtierGrandmaster` 是段位名，属契约冻结区，更不能动。
 >
+> 与上面的「刻意保留」不同，`package.json` 的元数据是更名时的**遗漏**而非例外：
+> `name` 仍是 `subtierwebsite`，`repository`/`bugs`/`homepage` 仍指向
+> `ItzArona/SubtierWebsite`，`license` 写的是 `ISC`——与仓库 AGPL-3.0 的 LICENSE
+> 直接矛盾，且发布压缩包会把这份 package.json 原样发出去。修正它不是禁区，但
+> `license` 涉及许可声明，动之前先与用户确认；在修正前别把这些字段当权威信息引用。
+>
 > 新代码的硬性约定：
 >
 > - **Node ≥ 22**（`better-sqlite3` 13 的要求）。开发机是 nvm 装的 v26；非交互 shell 需先
@@ -58,7 +64,7 @@ npm run golden:record            # 重录 API v1 契约基线（只在故意改 
 
 ```bash
 npm test -- tests/unit/upsert.test.ts       # 单个文件
-npm test -- -t '拒绝没有令牌的 POST'         # 按用例名匹配（跨文件）
+npm test -- -t '缺少令牌的 POST 被拒绝'      # 按用例名匹配（跨文件）
 npm test -- tests/integration --coverage    # 一个目录 + 覆盖率
 TEST_DIALECT=postgres TEST_PG_URL=... npm run test:repo   # 换方言重跑 repository 套件
 ```
@@ -91,11 +97,14 @@ app/
 ├─ repositories/           # 行 ↔ 领域对象，唯一写 SQL 的地方
 ├─ services/               # 业务规则，唯一抛 AppError 的地方
 ├─ errors/                 # AppError + 错误码集中表
+├─ types/                  # 领域类型 + DEFAULT_SETTINGS（domain.ts）
+├─ utils/                  # 纯函数：ranking（排名）/ tier（定级解析）/ validation（长度校验）
 ├─ web/
 │  ├─ middleware/          # csrf / auth / context / rateLimits / maintenance / errorHandler
 │  ├─ routes/              # 只做「鉴权 → zod → service → render」
 │  ├─ views/               # BaseLayout + components + pages（TSX）
-│  └─ shared/messages.ts   # 面向用户的文案字典
+│  ├─ session/             # KyselySessionStore（express-session 的 Kysely 会话存储）
+│  └─ shared/              # messages.ts 文案字典、tiers.ts 段位→材质映射
 ├─ client/                 # 渐进增强 TS（Vite 多入口）
 ├─ styles/                 # 设计 token + 组件 CSS（@layer）
 └─ static/                 # favicon、sprite
@@ -104,7 +113,13 @@ app/
 ### 几条不变量
 
 **中间件顺序是 load-bearing。** `app.ts` 里公开 API 必须挂在 `csrfProtection` **之前**，
-否则外部机器人的 GET 请求会被 CSRF 中间件链上，且 API 错误会落到 HTML 错误页而非 JSON 信封。
+否则外部机器人的 GET 请求会被 CSRF 中间件链上，且 API 错误会绕过 `apiV1Router` 自己的
+5 码出口、落到 app 级 `errorHandler`——按路径判定仍是 JSON 信封，但错误码与文案都是
+对外没承诺过的内部版本。
+
+**`trust proxy` 固定为 1**（部署假定恰好一跳反向代理，生产在 Cloudflare Tunnel 之后）。
+旧站写的是 `true`，等于无条件相信 `X-Forwarded-For`，按 IP 的限流可以被伪造头绕过
+（`rateLimits.ts` 的注释点名了这一条）。换代理拓扑时同步改 `app.ts:35`，绝不要改回 `true`。
 
 **repository 每次调用都向 DbManager 索取当前连接**（`BaseRepository` 的 `db` 是 getter），
 绝不在构造时捕获。这正是运行时热切库的支点——切换只是换掉 `DbManager` 里的指针。
@@ -151,7 +166,8 @@ PRG（Location 里回显的是提交者自己给的邮箱，不构成信道）�
 
 - 「账号不存在」分支里的占位 bcrypt 哈希**必须合法**（60 字符）。bcryptjs 对长度不符的
   串直接返回 false 而不做任何计算，一个形似的假串会让 200ms 的时间差直接暴露账号是否
-  存在。占位哈希由 `authService.placeholderPasswordHash(cost)` 惰性生成并按 cost 缓存。
+  存在。占位哈希由 `services/authService.ts` 导出的模块级函数
+  `placeholderPasswordHash(cost)`（不在 AuthService 类上）惰性生成并按 cost 缓存。
 - **发信绝不能 await。** 不存在的邮箱在 service 里直接 return（毫秒级），存在的要等一次
   Resend 往返（约 1.2 秒）。await 就等于把枚举信道搬到响应耗时上，而且比状态码信道更
   好用：一个请求判定一个邮箱，不需要 cookie、不需要连发两次。两条路由都走
@@ -181,7 +197,7 @@ PRG（Location 里回显的是提交者自己给的邮箱，不构成信道）�
 面板优先；都没指定就保留受众选择器。** 依据是 Azure 自己的分类——`common` /
 `organizations` / `consumers` 是**受众选择器**，不构成租户限制，只有租户 ID 或域名
 才把登录锁在一个租户里，所以前者不该挡住后者。反过来写（env 优先）更糟：
-`.env.example` 里长期写着 `MS_OAUTH_TENANT=common`，照抄过的部署会用它把面板上那个
+`.env.example` 里**曾**长期写着 `MS_OAUTH_TENANT=common`（现已留空），照抄过的老部署会用它把面板上那个
 具体租户覆盖掉，那是在**放宽**限制。这条路径上唯一不可退让的性质是**单调不放宽**：
 对任何一组输入，结果都不得比旧的「面板值优先」更宽松，
 `tests/unit/oauthTenant.test.ts` 逐组合守着它。
@@ -201,10 +217,11 @@ PRG（Location 里回显的是提交者自己给的邮箱，不构成信道）�
 `apiV1Router` 末尾还有**第三个**出口，它只服务 `/api/v1/*` 且刻意与上面两个不同：
 一律 `500 { error: 'internal_error', message: 'unexpected server error' }`，**不**沿用
 AppError 的 code 与 status。理由是对外承诺的错误码只有 5 个（见 `ApiDocs` 与 README），
-沿用内部码会把 `errors/codes.ts` 那张 44 条的表接到匿名端点上（`db_target_not_empty`、
+沿用内部码会把 `errors/codes.ts` 那张四十多条的表接到匿名端点上（`db_target_not_empty`、
 `cannot_modify_super` 之类），还会产出 `404 + "unexpected server error"` 这种自相矛盾的
 信封。注意路径匹配的缝隙：`/api/v1foo`、`/api/v1.json` 这类**不会**进 apiV1Router，
-会落到 app 级 `errorHandler`，因而拿到中文文案且没有 CORS 头。
+会落到 app 级 `errorHandler`——它判 API 用的是 `startsWith('/api/v1')`（比 `/api/v1/*` 宽），
+所以拿到的仍是 JSON 信封，只是错误码是内部码、文案是中文，且没有 CORS 头。
 
 跨重定向的提示只走 **PRG + session flash**（`setFlash(req, kind, id)`），
 文案键在 `web/shared/messages.ts`。不要再引入 `?error=code` 这类查询参数机制。
@@ -220,6 +237,10 @@ AppError 的 code 与 status。理由是对外承诺的错误码只有 5 个（�
 （`Too small: expected number to be >=1`、`Invalid input: expected number, received NaN`）、
 404 消息里嵌的原始路径、tier 分桶排序（HT 先于 LT，再按积分降序，再按名字升序）、
 `count`/`offset` 是**每个分桶**而非全局、以及无法解析的 tier 在 `/players/:name` 里转成 `null`。
+
+契约面不止这 22 条快照：按 IP 每分钟 60 次的限流、成功响应 60 秒的 `Cache-Control`、
+分页边界（`config/constants.ts` 的 `API_LIMITS`，注释标着「契约的一部分」）都公示在
+README 与 `/api/docs` 上，同属对外承诺，调整前先看 README 的开放 API 一节。
 
 ### 数据库切换
 
@@ -255,12 +276,13 @@ TLS 默认**校验证书**。自签证书、私有 CA 或按 IP 连接（证书�
 目标库连不上导致进程起不来时，用 `FORCE_SQLITE=1` 强制回退，或直接删除
 `data/db-config.json`。若是证书校验失败（`SELF_SIGNED_CERT_IN_CHAIN` 等），手动在
 `data/db-config.json` 里加 `"sslInsecure": true` 即可——注意这两条救急路径中，前者会落到
-一个空的 SQLite 文件上，别误判成数据丢了。
+一个空的 SQLite 文件上，别误判成数据丢了。同款陷阱还有第三条：`db-config.json`
+**内容不合法**（而非缺失）时，`dbConfigFile.ts` 只打一行 `console.error` 就静默退回默认 SQLite。
 
 ### 三级 RBAC
 
 `SuperAdmin`（恰好一个，由 `ADMIN_USERNAME` 指定）| `Admin` | `User`。
-不变量集中在 `services/userService.ts`：SuperAdmin 不可降级/删除，任何人不能对自己操作。
+不变量集中在 `services/userService.ts`：SuperAdmin 不可降级/删除/改名，任何人不能对自己操作。
 中间件在 `web/middleware/auth.ts`——`requireAuth` 每次都回查数据库并刷新会话快照，
 因为账号可能已被删除或降级（旧站只看会话快照，已删用户的旧会话仍能通行）。
 
@@ -268,7 +290,9 @@ TLS 默认**校验证书**。自签证书、私有 CA 或按 IP 连接（证书�
 
 视觉方向是「材质段位」：把 Minecraft 的材质进阶（石→铁→铜→金→钻石→绿宝石→下界合金）
 翻译成 7 档段位徽章色阶，配分段式 XP 槽与像素 SVG 图标。签名元素限量，其余扁平安静。
-段位匹配刻意宽容（忽略大小写/空格/`Subtier` 前缀），认不出的退回石质档而不是消失。
+段位匹配刻意宽容（忽略大小写/空格/`Subtier` 前缀），认不出的退回石质档而不是消失——
+这说的是 `web/shared/tiers.ts` 的 `materialForRank()`（段位 → 徽章材质）；`utils/tier.ts`
+的 `parseTier()` 是另一套互不相干的匹配（HT/LT 定级解析，认不出返回 `null`），别改错文件。
 
 榜单用 `<ol>` + CSS Grid，桌面与移动**共用一份标记**（靠 `grid-template-areas` 重排），
 不再需要旧站的 `data-label` 双维护。排序与搜索都是服务端行为（URL 参数），
@@ -308,7 +332,9 @@ SDK 的收益不抵依赖成本。这个取舍从旧站延续，请勿引入 `re
 build / test 加三条 check，另有一个 `db-matrix` job 在 PostgreSQL 16 与 MySQL 8 的
 service 容器上重跑 `test:repo`。
 
-`.github/workflows/release.yml`：推 `v*` 标签触发（也可 `workflow_dispatch` 传标签补跑）。
+`.github/workflows/release.yml`：推 `v*` 标签触发（也可 `workflow_dispatch` 传**已存在的**
+标签补跑：job 开头会先校验标签、缺失即明确报错；并发组按标签归一，补跑不会与标签推送
+并发跑两份；Release 已存在时只覆盖资产、不更新 notes）。
 它**自带一整套门禁**（含同构的 `db-matrix` job，release 依赖它）——`ci.yml` 只监听分支
 push，标签推送不会触发它，所以发布件必须自己验一遍。之后打出
 `cntiers-web-oss-<version>.tar.gz` + `.sha256` 并建 GitHub Release。几个刻意的决定：

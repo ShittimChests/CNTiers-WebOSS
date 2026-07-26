@@ -91,7 +91,8 @@ export function createApp(): Express {
 
   // ---- 公开 API：必须早于 csrfProtection ----
   // 否则 CSRF 中间件会链上外部机器人的 GET 请求，
-  // 且 API 错误会落到 HTML 错误页而不是 JSON 信封
+  // 且 API 错误会绕过 apiV1Router 自己的 5 码出口，
+  // 从 errorHandler 拿到内部码的中文信封
   app.use('/api/v1', apiCors, apiLimiter, apiV1Router);
 
   app.use(csrfProtection);

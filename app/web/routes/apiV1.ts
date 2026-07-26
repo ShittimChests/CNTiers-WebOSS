@@ -238,7 +238,7 @@ apiV1Router.use((req, res) => {
  * 故障不该表现成 500」，但那个理由是虚构的：`/api/v1` 的整条调用图里没有任何
  * AppError 会到达这里（Kysely 与 repository 抛的是普通 Error，db_connect_failed
  * 只在 /admin/database 的路径上抛）。换来的代价却是真的——`error` 字段会从
- * errors/codes.ts 那张 44 条内部码表里取值，于是匿名公开端点可能吐出
+ * errors/codes.ts 那张四十多条的内部码表里取值，于是匿名公开端点可能吐出
  * `db_target_not_empty`、`cannot_modify_super` 这类内部管理词汇，还会产生
  * `404 + "unexpected server error"` 这种自相矛盾的信封，以及不带 Retry-After
  * 的 429。ApiDocs 与 README 对外承诺的错误码只有 5 个，这里必须收在里面。
