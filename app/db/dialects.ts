@@ -21,6 +21,14 @@ export interface ServerDbConfig {
   user: string;
   password: string;
   ssl: boolean;
+  /**
+   * 开启 TLS 但**不校验证书**。默认关闭，即 ssl 为真时会校验证书链与主机名。
+   *
+   * 需要它的场景是真实存在的：自签证书、私有 CA、或按 IP 连接（证书几乎不会
+   * 带 IP SAN）。但它必须是显式选择——「加密而不认证」挡不住中间人，
+   * 而这一点从连接摘要里看不出来，所以 describeConnection 会给它加标记。
+   */
+  sslInsecure?: boolean;
 }
 
 export type DbConnectionConfig = SqliteConfig | ServerDbConfig;
@@ -78,7 +86,9 @@ export async function createDialect(dbConfig: DbConnectionConfig): Promise<Diale
       database: dbConfig.database,
       user: dbConfig.user,
       password: dbConfig.password,
-      ssl: dbConfig.ssl ? { rejectUnauthorized: false } : false,
+      // 默认校验证书：只加密不认证等于把 MITM 当成安全，
+      // 跳过校验必须由 sslInsecure 显式请求
+      ssl: dbConfig.ssl ? { rejectUnauthorized: !dbConfig.sslInsecure } : false,
       max: 10,
       connectionTimeoutMillis: 10_000
     });
@@ -93,7 +103,8 @@ export async function createDialect(dbConfig: DbConnectionConfig): Promise<Diale
     database: dbConfig.database,
     user: dbConfig.user,
     password: dbConfig.password,
-    ssl: dbConfig.ssl ? { rejectUnauthorized: false } : undefined,
+    // 同上。mysql2 的「不启用」是 undefined 而不是 false，别顺手统一
+    ssl: dbConfig.ssl ? { rejectUnauthorized: !dbConfig.sslInsecure } : undefined,
     connectionLimit: 10,
     connectTimeout: 10_000,
     // 时间戳列是字符串，关掉驱动的日期解析以免类型漂移
@@ -107,8 +118,15 @@ export async function createKysely(dbConfig: DbConnectionConfig): Promise<Kysely
   return new Kysely<Database>({ dialect });
 }
 
-/** 人类可读的连接摘要，用于日志与面板展示。绝不包含密码。 */
+/**
+ * 人类可读的连接摘要，用于日志与面板展示。绝不包含密码。
+ *
+ * 跳过证书校验会被标出来：这是一个安全上的降级选择，若在摘要里看不见，
+ * 勾上之后就再没有任何地方提醒过它还开着。
+ */
 export function describeConnection(dbConfig: DbConnectionConfig): string {
   if (dbConfig.driver === 'sqlite') return `sqlite:${dbConfig.file}`;
-  return `${dbConfig.driver}://${dbConfig.user}@${dbConfig.host}:${String(dbConfig.port)}/${dbConfig.database}`;
+  const base = `${dbConfig.driver}://${dbConfig.user}@${dbConfig.host}:${String(dbConfig.port)}/${dbConfig.database}`;
+  if (dbConfig.ssl && dbConfig.sslInsecure) return `${base}（TLS 未校验证书）`;
+  return base;
 }

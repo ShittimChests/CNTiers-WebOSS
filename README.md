@@ -14,7 +14,7 @@
 
 ```bash
 npm install
-cp .env.example .env      # 至少填 SESSION_SECRET
+cp .env.example .env      # 开发态可留空；生产必须填 SESSION_SECRET 与 APP_BASE_URL
 npm run build             # 构建前端资产与服务端产物
 npm run dev               # 开发模式（另开一个终端跑 npm run dev:assets）
 ```
@@ -31,8 +31,12 @@ npm run db:import                 # 正式导入（幂等，可重跑）
 
 ## 环境变量
 
-参考 `.env.example`。生产环境必须设置 `SESSION_SECRET`——它同时用于会话签名与
-验证码派生，缺失时进程会拒绝启动。
+参考 `.env.example`。生产环境有两个变量**必须**设置，缺任一进程都会拒绝启动：
+
+- `SESSION_SECRET`：同时用于会话签名与验证码 HMAC 派生。
+- `APP_BASE_URL`：站点对外地址。`isHttps` 从它推导，一旦退回 `http://localhost:PORT`，
+  会话 cookie 会静默丢掉 `Secure`、CSP 会丢掉 `upgrade-insecure-requests`，
+  Microsoft OAuth 的 `redirect_uri` 也会拼错——三件事都不报错，所以宁可不启动。
 
 注册与密码重置需要 `RESEND_API_KEY` 与 `EMAIL_FROM`；Microsoft 登录需要
 `MS_OAUTH_CLIENT_ID`（也可在后台填）与 `MS_OAUTH_CLIENT_SECRET`（只能放环境变量）。

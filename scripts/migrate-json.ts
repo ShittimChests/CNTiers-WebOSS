@@ -10,6 +10,10 @@
  * 本文件只负责参数解析、事务编排与报告输出。
  *
  * dry-run 是在事务内完整执行导入后回滚，因此报告与真实导入完全同源。
+ *
+ * **目标只支持 SQLite**（--db 收的是 data/ 下的文件名）。这与上线切换清单
+ * 的顺序一致：先导进 SQLite，再用 /admin/database 面板迁移到 PostgreSQL /
+ * MySQL——面板会复制数据并逐表核对，比在这里再写一套连接参数解析更可靠。
  */
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -115,6 +119,29 @@ async function main(): Promise<void> {
     console.log(`榜单条目   ${String(result.entries)} / ${String(entries.length)}`);
     console.log(`定级记录   ${String(result.tiers)}`);
     console.log(`设置项     ${String(result.settings)}`);
+    console.log(`SuperAdmin ${result.superAdmins.join('、') || '（无）'}`);
+
+    /*
+     * 旧站把 role === 'admin' 也算作 SuperAdmin（scripts/lib/legacyImport.ts
+     * 的 normalizeRole 沿用了这条规则），所以旧数据里有几个这样的账号，导入后
+     * 就有几个 SuperAdmin。新站不允许对 SuperAdmin 降级或删除，多出来的那些
+     * 在后台里动不了，必须在这里就让人看到。
+     */
+    /*
+     * 判据不能只是「多于一个」：「恰好一个、但不是 ADMIN_USERNAME」同样是坑——
+     * ensureSuperAdmin 见到已有别的 SuperAdmin 就只打一行 warn 返回，不会再创建
+     * ADMIN_USERNAME 对应的账号，于是操作者手上一个能用的 SuperAdmin 都没有，
+     * 而那个既有的又降不了级、删不掉。
+     */
+    if (result.superAdmins.length !== 1 || result.superAdmins[0] !== superAdminName) {
+      console.warn(
+        `\n⚠️  导入后的 SuperAdmin 是 [${result.superAdmins.join('、') || '（无）'}]，` +
+          `而 ADMIN_USERNAME 指定的是 [${superAdminName}]。\n` +
+          '  新站不允许对 SuperAdmin 降级或删除，也不会在「已有别的 SuperAdmin」时' +
+          '再创建 ADMIN_USERNAME 账号。\n' +
+          '  若这不是预期结果，请先改掉旧数据里相关账号的 role（或调整 ADMIN_USERNAME）再重跑导入。'
+      );
+    }
 
     for (const skipped of result.skippedRecords) {
       console.warn(`⚠️  跳过：${skipped}`);

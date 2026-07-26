@@ -233,8 +233,26 @@ apiV1Router.use((req, res) => {
   });
 });
 
-/** API 自己的错误出口，绝不让错误落到 HTML 错误页。 */
-apiV1Router.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+/**
+ * API 自己的错误出口，绝不让错误落到 HTML 错误页。
+ *
+ * 刻意**不**沿用 AppError 的状态码与码名。曾经改成那样，理由是「502 的数据库
+ * 故障不该表现成 500」，但那个理由是虚构的：`/api/v1` 的整条调用图里没有任何
+ * AppError 会到达这里（Kysely 与 repository 抛的是普通 Error，db_connect_failed
+ * 只在 /admin/database 的路径上抛）。换来的代价却是真的——`error` 字段会从
+ * errors/codes.ts 那张 44 条内部码表里取值，于是匿名公开端点可能吐出
+ * `db_target_not_empty`、`cannot_modify_super` 这类内部管理词汇，还会产生
+ * `404 + "unexpected server error"` 这种自相矛盾的信封，以及不带 Retry-After
+ * 的 429。ApiDocs 与 README 对外承诺的错误码只有 5 个，这里必须收在里面。
+ *
+ * 唯一的实质改动是补上 headersSent 卫兵（app 级 errorHandler 早就有）：
+ * 响应已经开始发送时二次写入会抛 ERR_HTTP_HEADERS_SENT 并逃出 handler。
+ */
+apiV1Router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
   console.error('[api]', error);
+  if (res.headersSent) {
+    next(error);
+    return;
+  }
   res.status(500).json({ error: 'internal_error', message: 'unexpected server error' });
 });

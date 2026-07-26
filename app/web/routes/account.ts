@@ -64,12 +64,12 @@ accountRouter.post('/account/password', requireAuth, (req, res, next) => {
         parsed.data.password
       );
 
-      const revoked = await userService.revokeSessions(sessionUser.id);
+      // 精确保留当前会话，而不是删光再指望后续写操作把它复活——
+      // express-session 在 resave:false 下不会回写一个内容未变的会话
+      const revoked = await userService.revokeSessions(sessionUser.id, req.sessionID);
       if (revoked > 0) {
         console.info(`已作废用户 ${user.username} 的 ${String(revoked)} 个其它会话。`);
       }
-      // revokeSessions 会连当前会话一起删掉，重新写回让当前浏览器保持登录
-      req.session.user = sessionUser;
 
       setFlash(req, 'success', hadPassword ? 'account.passwordChanged' : 'account.passwordCreated');
       res.redirect('/account');

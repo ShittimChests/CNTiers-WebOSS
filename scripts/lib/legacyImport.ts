@@ -61,6 +61,15 @@ export interface ImportReport {
   /** 跳过的无效记录，例如没有用户名。 */
   skippedRecords: string[];
   rankingSample: string[];
+  /**
+   * 导入后目标库里的全部 SuperAdmin 用户名（字母序）。
+   *
+   * 必须让人看见：normalizeRole 忠实沿用了旧站「role === 'admin' 即 SuperAdmin」
+   * 的规则，于是旧数据里有几个这样的账号，导入后就有几个 SuperAdmin。而新站的
+   * userService 拒绝对任何 SuperAdmin 执行降级/删除，多出来的那些在后台里
+   * 是动不了的——这件事必须在切换清单第 3 步就被看到，而不是上线后才发现。
+   */
+  superAdmins: string[];
 }
 
 export interface Conflict {
@@ -120,7 +129,8 @@ export async function importLegacyData(
     settings: 0,
     skippedTiers: [],
     skippedRecords: [],
-    rankingSample: []
+    rankingSample: [],
+    superAdmins: []
   };
 
   // --- 用户 ---
@@ -277,6 +287,14 @@ export async function importLegacyData(
   // --- 排名一致性抽样 ---
   const importedEntries = await trx.selectFrom('entries').select(['player', 'points']).execute();
   report.rankingSample = formatRanking(importedEntries);
+
+  // --- 导入后的 SuperAdmin 清单（供人工核对，见 ImportReport 上的说明）---
+  const supers = await trx
+    .selectFrom('users')
+    .select('username')
+    .where('role', '=', 'SuperAdmin')
+    .execute();
+  report.superAdmins = supers.map((row) => row.username).sort((a, b) => a.localeCompare(b));
 
   return report;
 }

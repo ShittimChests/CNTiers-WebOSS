@@ -22,10 +22,23 @@ export const MAIL_COOLDOWN_MS = 30 * 1000;
 /** OAuth 授权态在会话中的存活时间。 */
 export const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
-/** 限流：登录、发信、公开 API 三条独立轨道。 */
+/**
+ * 维护模式 503 上给出的 Retry-After（秒）。
+ * 只有维护模式配得上这个头——它是唯一有预期恢复时间的 503。
+ */
+export const MAINTENANCE_RETRY_AFTER_SECONDS = 60;
+
+/**
+ * 限流：登录、发信、验证码校验、公开 API 四条独立轨道。
+ *
+ * code 那条守的是 POST /verify 与 POST /reset。账号级的「5 次错误即作废」
+ * 只按 (账号, 用途) 计数，挡不住「换邮箱各试一次」——而这两个端点的响应
+ * 会因账号是否存在而不同，所以它们本身就是可被反复探测的面。
+ */
 export const RATE_LIMITS = {
   login: { windowMs: 15 * 60 * 1000, max: 10 },
   mail: { windowMs: 60 * 1000, max: 4 },
+  code: { windowMs: 5 * 60 * 1000, max: 20 },
   api: { windowMs: 60 * 1000, max: 60 }
 } as const;
 

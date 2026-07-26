@@ -353,6 +353,25 @@ describe('细分项目管理', () => {
 
     expect(await categoryRepository.listNames()).toEqual([]);
   });
+
+  it('删除既有项目不受「新建时字符集」限制', async () => {
+    /*
+     * 库里的项目名来自旧数据，未必符合今天新建时的规则。删除与改名的**来源名**
+     * 若也套用新建的字符集正则，这类历史项目在后台里就既删不掉也改不了
+     * ——改名的 from 早就是不带正则的，删除此前漏了这一条。
+     */
+    await categoryRepository.ensureMany(['带中文的项目名']);
+    const agent = await loginAs('Manager');
+    const token = await tokenFrom(agent, '/admin/categories');
+
+    await agent
+      .post('/admin/categories/delete')
+      .type('form')
+      .send({ _csrf: token, name: '带中文的项目名' });
+
+    expect(await categoryRepository.listNames()).toEqual([]);
+    expect((await agent.get('/admin/categories')).text).toContain('细分项目已删除');
+  });
 });
 
 describe('站点设置', () => {

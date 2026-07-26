@@ -14,6 +14,17 @@ import { DB_DRIVERS, DEFAULT_SQLITE_CONFIG, type DbConnectionConfig } from './di
 
 const CONFIG_PATH = resolve(config.dataDir, 'db-config.json');
 
+/**
+ * 布尔字段一律「缺失也算合法」。
+ *
+ * 这一条不是风格问题：isValidConfig 判否的后果是**静默退回默认 SQLite**
+ * （见 loadDbConfig），运维看到的是一个空库，很像数据全丢了。所以对可选字段
+ * 只拒绝类型错误的值，不拒绝缺失。
+ */
+function isOptionalBoolean(value: unknown): boolean {
+  return value === undefined || typeof value === 'boolean';
+}
+
 function isValidConfig(value: unknown): value is DbConnectionConfig {
   if (typeof value !== 'object' || value === null) return false;
   const record = value as Record<string, unknown>;
@@ -27,7 +38,9 @@ function isValidConfig(value: unknown): value is DbConnectionConfig {
     typeof record['port'] === 'number' &&
     typeof record['database'] === 'string' &&
     typeof record['user'] === 'string' &&
-    typeof record['password'] === 'string'
+    typeof record['password'] === 'string' &&
+    isOptionalBoolean(record['ssl']) &&
+    isOptionalBoolean(record['sslInsecure'])
   );
 }
 

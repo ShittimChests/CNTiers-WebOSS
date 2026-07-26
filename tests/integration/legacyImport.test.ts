@@ -119,6 +119,16 @@ describe('importLegacyData', () => {
     // 无法识别的 'moderator' 退回 User
     expect((await users.findByUsername('WeirdRole'))?.role).toBe('User');
     expect((await users.findByUsername('admin'))?.role).toBe('SuperAdmin');
+
+    /*
+     * 报告必须把 SuperAdmin 列出来。旧规则「role === 'admin' 即 SuperAdmin」
+     * 意味着旧数据里有几个这样的账号，导入后就有几个 SuperAdmin；而新站的
+     * userService 拒绝对任何 SuperAdmin 降级或删除，多出来的那些在后台里
+     * 动不了。这件事必须在切换清单第 3 步就被看到，而不是上线后才发现。
+     */
+    expect(report.superAdmins).toHaveLength(2);
+    expect(report.superAdmins).toContain('admin');
+    expect(report.superAdmins).toContain('OldAdmin');
   });
 
   it('缺失邮箱时补 <username>@local（沿用旧站语义）', async () => {

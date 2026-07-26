@@ -42,7 +42,9 @@ async function bootstrap(): Promise<void> {
 
   const app = createApp();
   const server = app.listen(config.port, () => {
-    console.info(`CN Subtiers 已启动：${config.appBaseUrl}`);
+    // 把 env 一起打出来：生产环境的必填项校验、secure cookie 与 CSP 升级
+    // 全都挂在 NODE_ENV 上，运维必须能一眼看出这次跑的是哪个模式
+    console.info(`CN Subtiers 已启动：${config.appBaseUrl}（NODE_ENV=${config.env}）`);
   });
 
   /*

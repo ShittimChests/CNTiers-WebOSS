@@ -9,6 +9,17 @@ import { setFlash } from '../middleware/context.js';
 export const oauthRouter = Router();
 
 /**
+ * 取单值查询参数。
+ *
+ * 重复参数名（`?state=a&state=b`）会让 Express 给出数组，`as string` 断言在
+ * 这里是不成立的。返回 undefined 即落到既有的 oauth_state_invalid 分支，
+ * 呈现为「重新发起登录」，而不是一个裸的类型错误。
+ */
+function singleQueryValue(raw: unknown): string | undefined {
+  return typeof raw === 'string' && raw.length > 0 ? raw : undefined;
+}
+
+/**
  * Microsoft OAuth。
  *
  * 登录与绑定用两条独立的回调地址，各自的授权态里记着 mode，回调时校验——
@@ -41,8 +52,8 @@ oauthRouter.get('/auth/microsoft/callback', (req, res, next) => {
       const profile = await oauthService.handleCallback(
         stash,
         {
-          code: req.query['code'] as string | undefined,
-          state: req.query['state'] as string | undefined
+          code: singleQueryValue(req.query['code']),
+          state: singleQueryValue(req.query['state'])
         },
         'login'
       );
@@ -97,8 +108,8 @@ oauthRouter.get('/account/link/microsoft/callback', requireAuth, (req, res, next
       const profile = await oauthService.handleCallback(
         stash,
         {
-          code: req.query['code'] as string | undefined,
-          state: req.query['state'] as string | undefined
+          code: singleQueryValue(req.query['code']),
+          state: singleQueryValue(req.query['state'])
         },
         'link'
       );

@@ -32,7 +32,14 @@ export async function attachContext(
 
     res.locals.ctx = {
       user: req.session.user ?? null,
-      csrfToken: currentCsrfToken(req),
+      /**
+       * 惰性铸造：只有视图真的渲染 POST 表单、读到这个属性时才写会话。
+       * 若在这里直接求值，任何一次匿名 GET（含 404）都会落一行 sessions
+       * 并下发 Set-Cookie —— 首页与 /api/docs 是被机器人反复命中的公开页。
+       */
+      get csrfToken(): string {
+        return currentCsrfToken(req);
+      },
       // 读一次即清空：这是 flash 的定义
       flash: takeFlash(req),
       settings: {

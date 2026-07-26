@@ -88,9 +88,16 @@ export class UserService {
     return this.users.update(userId, { oauthProvider: null, oauthSubject: null });
   }
 
-  /** 强制某个用户的全部会话失效（改密码、被降级等场景）。 */
-  async revokeSessions(userId: string): Promise<number> {
-    return this.sessions.deleteByUser(userId);
+  /**
+   * 强制某个用户的会话失效（改密码、被降级等场景）。
+   *
+   * 传 exceptSid 时保留那一个——改密码的调用方需要留住当前浏览器，
+   * 否则用户刚改完密码就被踢下线。
+   */
+  async revokeSessions(userId: string, exceptSid?: string): Promise<number> {
+    return exceptSid === undefined
+      ? this.sessions.deleteByUser(userId)
+      : this.sessions.deleteByUserExcept(userId, exceptSid);
   }
 }
 

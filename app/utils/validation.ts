@@ -126,8 +126,24 @@ export const categoryNameSchema = z.object({
     .regex(/^[A-Za-z0-9 _-]+$/, '项目名只能包含字母、数字、空格、下划线与短横线')
 });
 
+/**
+ * 按名字指认一个**已存在**的项目（删除、以及改名的来源名）。
+ *
+ * 刻意既不带字符集正则、也不用新建时的长度上限：库里的项目名来自旧数据，
+ * 未必符合今天新建的规则。两条都是真实来源——旧站的 Excel 导入直接把表头
+ * `String(header).trim()` 当项目名，既不校验字符集也不校验长度，而 SQLite
+ * 根本不强制 varchar(48)，所以库里确实可能存在 60 字符或含中文的项目名。
+ * 用新建规则去卡，这类历史项目在后台里就既删不掉也改不了。
+ *
+ * 上限仍然要有（防止无界输入），但取一个只与「能不能进数据库」有关的宽值。
+ */
+const categoryLookupName = trimmed.min(1).max(255);
+
+export const categoryLookupSchema = z.object({ name: categoryLookupName });
+
 export const categoryRenameSchema = z.object({
-  from: trimmed.min(1).max(FIELD_LIMITS.categoryName.max),
+  // 来源名走 lookup 规则（库里的既有数据），目标名才走新建规则
+  from: categoryLookupName,
   to: trimmed
     .min(FIELD_LIMITS.categoryName.min)
     .max(FIELD_LIMITS.categoryName.max)

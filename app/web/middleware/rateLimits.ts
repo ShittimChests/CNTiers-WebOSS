@@ -3,9 +3,11 @@ import type { NextFunction, Request, Response } from 'express';
 import { RATE_LIMITS } from '../../config/constants.js';
 
 /**
- * 三条独立的限流轨道，与旧站一致：
+ * 四条独立的限流轨道：
  *   - 登录：保护密码校验路径
  *   - 发信：保护注册 / 忘记密码 / 重发验证码（与按用户的 30 秒冷却叠加）
+ *   - 验证码校验：保护 POST /verify 与 POST /reset。账号级的「5 次即作废」
+ *     只按 (账号, 用途) 计数，挡不住「换一个邮箱各试一次」这种横向探测
  *   - 公开 API：保护对外读接口
  *
  * `validate: { trustProxy: false }` 关掉的是 express-rate-limit 自己的告警，
@@ -31,6 +33,15 @@ export const mailLimiter = rateLimit({
   legacyHeaders: false,
   validate: { trustProxy: false },
   message: '邮件发送过于频繁，请 1 分钟后重试'
+});
+
+export const codeLimiter = rateLimit({
+  windowMs: RATE_LIMITS.code.windowMs,
+  limit: RATE_LIMITS.code.max,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: false },
+  message: '验证码尝试过于频繁，请稍后再试'
 });
 
 /** API 的 429 响应体与 Retry-After 都是契约的一部分。 */
@@ -62,6 +73,11 @@ export function apiCors(req: Request, res: Response, next: NextFunction): void {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  /*
+   * Retry-After 与 RateLimit-* 都不在 CORS 的默认可读清单里，不显式暴露的话
+   * 浏览器端的调用方只能读到 429 的响应体，读不到文档承诺的重试时间。
+   */
+  res.setHeader('Access-Control-Expose-Headers', 'Retry-After, RateLimit-Policy, RateLimit');
   res.setHeader('Access-Control-Max-Age', '86400');
   if (req.method === 'OPTIONS') {
     res.status(204).end();

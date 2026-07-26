@@ -190,6 +190,23 @@ describe('迁移并切换', () => {
     expect(await sessionRepository.count()).toBe(0);
   });
 
+  it('目标库没有 SuperAdmin 时切换后补一个（否则清空会话就没人登得回来）', async () => {
+    /*
+     * 切库会清空全部会话。若目标库里没有任何 SuperAdmin，切完就没人能登回来，
+     * 只能等下一次进程重启才会 seed。direct 模式只校验结构版本、完全不看用户，
+     * 所以这条路径原来是敞开的；migrate 模式在源库也没有 SuperAdmin 时同样中招。
+     */
+    const root = await userRepository.findByUsername('Root');
+    await userRepository.update(root!.id, { role: 'User' });
+    expect(await userRepository.findFirstByRole('SuperAdmin')).toBeNull();
+
+    await service.switchTo(TARGET, 'migrate');
+
+    // ADMIN_USERNAME 未设时默认 'admin'
+    const seeded = await userRepository.findByUsername('admin');
+    expect(seeded?.role).toBe('SuperAdmin');
+  });
+
   it('连接配置被写入 data/db-config.json', async () => {
     await service.switchTo(TARGET, 'migrate');
 
@@ -289,6 +306,33 @@ describe('维护模式', () => {
     }
 
     expect((await request(app).get('/')).status).toBe(200);
+  });
+
+  it('维护模式的 503 带 Retry-After', async () => {
+    const { createApp } = await import('../../app/app.js');
+    const { enterMaintenance, exitMaintenance } =
+      await import('../../app/web/middleware/maintenance.js');
+    const app = createApp();
+    const agent = request.agent(app);
+
+    // 先拿一个合法令牌：CSRF 检查排在维护检查之前，没有令牌会先被 403 挡掉
+    const page = await agent.get('/login');
+    const token = /name="_csrf" value="([^"]+)"/.exec(page.text)?.[1] ?? '';
+    expect(token).not.toBe('');
+
+    enterMaintenance('测试');
+    try {
+      const write = await agent
+        .post('/login')
+        .type('form')
+        .send({ _csrf: token, identifier: 'x', password: 'y' });
+
+      expect(write.status).toBe(503);
+      // 维护是唯一有预期恢复时间的 503，值得告诉客户端什么时候回来
+      expect(Number(write.headers['retry-after'])).toBeGreaterThan(0);
+    } finally {
+      exitMaintenance();
+    }
   });
 });
 

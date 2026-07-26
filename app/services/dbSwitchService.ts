@@ -5,8 +5,10 @@ import { dbManager, type DbManager } from '../db/manager.js';
 import { currentMigrationVersion, runMigrations, LATEST_MIGRATION } from '../db/migrator.js';
 import type { Database } from '../db/types.js';
 import { AppError } from '../errors/AppError.js';
+import { UserRepository } from '../repositories/userRepository.js';
 import { enterMaintenance, exitMaintenance } from '../web/middleware/maintenance.js';
 import { settingsService } from './settingsService.js';
+import { ensureSuperAdmin } from './superAdminSeed.js';
 
 /**
  * 数据库切换。
@@ -32,7 +34,13 @@ const COPY_ORDER = [
 
 type CopyTable = (typeof COPY_ORDER)[number];
 
-/** 一次插入的行数。SQLite 有 999 个绑定参数的上限，分批最稳。 */
+/**
+ * 一次插入的行数。三种方言都有绑定参数上限，最紧的是 **SQLite 的 32766**
+ * （better-sqlite3 13 带的 SQLite 3.53；PostgreSQL 与 MySQL 都是 65535，
+ * 协议里 num_params 是 2 字节）。老注释写的「999」是 SQLite 3.32 之前的默认值。
+ * 最宽的表（users，12 列）在这个批量下是 1200 个占位符，离最紧的那条也很远。
+ * 分批的另一半理由是内存：整表读进来后再一次性发给驱动会翻倍占用。
+ */
 const BATCH_SIZE = 100;
 
 export interface ConnectionProbe {
@@ -134,6 +142,31 @@ export class DbSwitchService {
       // 会话不跨库搬迁，全部作废
       await this.manager.db().deleteFrom('sessions').execute();
       settingsService.invalidate();
+
+      /*
+       * 切库后保障「至少有一个可登录的 SuperAdmin」。
+       *
+       * direct 模式只校验结构版本，不校验有没有用户——切到一个「已迁移但空」的
+       * 库、再把会话清空，就没有任何人能登回来了（要等下次重启才会 seed）。
+       *
+       * 只在**完全没有** SuperAdmin 时才动手，绝不无条件调用 ensureSuperAdmin：
+       * 那个函数不止「缺则补」一件事，它还会把 ADMIN_USERNAME 同名的既有账号
+       * 提升为 SuperAdmin。无条件调用的话，「切一次库」就会变成「顺手给目标库里
+       * 那个叫 admin 的普通用户提权」，而且每次切库都会把 ADMIN_PASSWORD
+       * 重新变成一条可用凭据。
+       *
+       * 放在指针切换之后、且只记日志不抛：此刻切换已经成功，为一次 seed 失败
+       * 把它报成失败会违反「active 指针没动才算失败」这条不变量。
+       */
+      try {
+        const users = new UserRepository(this.manager);
+        if (!(await users.findFirstByRole('SuperAdmin'))) {
+          console.warn('目标库里没有 SuperAdmin，按 ADMIN_USERNAME 补建一个。');
+          await ensureSuperAdmin(users);
+        }
+      } catch (error) {
+        console.error('切库成功，但保障 SuperAdmin 时出错（请手动检查目标库）：', error);
+      }
 
       console.info(`数据库已切换：${describeConnection(previous)} → ${describeConnection(target)}`);
       return { copied, summary: describeConnection(target) };

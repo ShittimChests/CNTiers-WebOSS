@@ -8,7 +8,12 @@ import type { PublicUser } from './domain.js';
  */
 export interface ViewContext {
   user: PublicUser | null;
-  csrfToken: string;
+  /**
+   * 必须是 readonly：实现是一个只有 getter 的惰性属性（见 middleware/context.ts），
+   * 声明成可写的话 `ctx.csrfToken = x` 会在运行时抛 TypeError 而 tsc 不报错
+   * ——而「就地改 ctx」在本仓库是既有写法（requireAuth 就在改 ctx.user）。
+   */
+  readonly csrfToken: string;
   flash: Flash | null;
   /** 影响导航与登录页按钮显隐的公开设置。 */
   settings: {

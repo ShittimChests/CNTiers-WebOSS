@@ -56,16 +56,48 @@ const raw = parseEnv();
 const isProduction = raw.NODE_ENV === 'production';
 const isTest = raw.NODE_ENV === 'test';
 
-function resolveSessionSecret(): string {
-  if (raw.SESSION_SECRET && raw.SESSION_SECRET.length > 0) return raw.SESSION_SECRET;
-  if (isProduction) {
-    console.error(
-      '✖ 生产环境必须设置 SESSION_SECRET。\n' +
-        '  它同时用于会话签名与验证码 HMAC 派生，缺失会导致重启后会话与验证码全部失效。\n' +
-        "  生成方式：node -e \"console.log(require('node:crypto').randomBytes(32).toString('hex'))\""
+/**
+ * 生产环境的必填项一次性全部检查完再退出。
+ *
+ * 逐项 exit 会让运维「补一个、重启、再看下一个」地来回好几轮——zod 的分支
+ * 是聚合报错的，手写的这两条也该一致。
+ *
+ * 校验只在 isProduction 分支做，不写进 zod schema：写进 schema 会让 dev 与
+ * test 每次 import 都退出。
+ */
+function assertProductionEnv(): void {
+  if (!isProduction) return;
+
+  const missing: string[] = [];
+  if (!raw.SESSION_SECRET || raw.SESSION_SECRET.length === 0) {
+    missing.push(
+      '  - SESSION_SECRET：同时用于会话签名与验证码 HMAC 派生，缺失会导致重启后会话与验证码全部失效。\n' +
+        "    生成方式：node -e \"console.log(require('node:crypto').randomBytes(32).toString('hex'))\""
     );
+  }
+  if (!raw.APP_BASE_URL) {
+    /*
+     * 缺失时退回 http://localhost:PORT 的后果不是「地址不对」这么轻：isHttps 会
+     * 变成 false，于是会话 cookie 丢掉 Secure、CSP 丢掉 upgrade-insecure-requests，
+     * OAuth 的 redirect_uri 也会拼错。三件事都是静默发生的。
+     */
+    missing.push(
+      '  - APP_BASE_URL：决定会话 cookie 是否带 Secure、CSP 是否升级不安全请求，' +
+        '以及 Microsoft OAuth 的 redirect_uri。\n' +
+        '    例：APP_BASE_URL=https://subtier.example.com'
+    );
+  }
+
+  if (missing.length > 0) {
+    console.error(`✖ 生产环境缺少必需的环境变量：\n${missing.join('\n')}`);
     process.exit(1);
   }
+}
+
+assertProductionEnv();
+
+function resolveSessionSecret(): string {
+  if (raw.SESSION_SECRET && raw.SESSION_SECRET.length > 0) return raw.SESSION_SECRET;
   const temporary = randomBytes(32).toString('hex');
   if (!isTest) {
     console.warn('⚠️  SESSION_SECRET 未设置，本次运行使用临时密钥，重启后会话会失效。');
@@ -74,7 +106,19 @@ function resolveSessionSecret(): string {
 }
 
 const port = raw.PORT;
-const appBaseUrl = (raw.APP_BASE_URL ?? `http://localhost:${port}`).replace(/\/+$/, '');
+const appBaseUrl = (raw.APP_BASE_URL ?? `http://localhost:${raw.PORT}`).replace(/\/+$/, '');
+
+/*
+ * 生产环境用 http:// 是合法的（本机直连、内网），但它同样会静默关掉 Secure
+ * cookie 与 upgrade-insecure-requests，所以必须说出来。旧站 src/server.js 有
+ * 这条告警，重写时丢了——对最容易发生的误配置而言那是个退步。
+ */
+if (isProduction && !appBaseUrl.startsWith('https://')) {
+  console.warn(
+    `⚠️  NODE_ENV=production 但 APP_BASE_URL 不是 https（${appBaseUrl}）：` +
+      '会话 cookie 不会带 Secure，CSP 也不会升级不安全请求。仅在本机直连时才应如此。'
+  );
+}
 
 /**
  * 数据目录以工作目录为基准而非 __dirname——编译前后（app/ 与 dist/server/）

@@ -6,6 +6,7 @@ import { leaderboardService } from '../../services/leaderboardService.js';
 import { settingsService } from '../../services/settingsService.js';
 import { userService } from '../../services/userService.js';
 import {
+  categoryLookupSchema,
   categoryNameSchema,
   categoryRenameSchema,
   entrySchema,
@@ -184,7 +185,9 @@ adminRouter.post('/admin/categories/rename', requireAdminOrAbove, (req, res, nex
 });
 
 adminRouter.post('/admin/categories/delete', requireAdminOrAbove, (req, res, next) => {
-  const parsed = categoryNameSchema.safeParse(req.body);
+  // 删除用不带字符集正则的 schema：目标是库里已有的项目，
+  // 拿「新建时的字符集」去卡会让历史项目删不掉
+  const parsed = categoryLookupSchema.safeParse(req.body);
   if (!parsed.success) return rejectInput(req, res, '/admin/categories');
 
   submit(req, res, next, '/admin/categories', async () => {

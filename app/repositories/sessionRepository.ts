@@ -64,6 +64,22 @@ export class SessionRepository extends BaseRepository {
     return Number(result.numDeletedRows ?? 0);
   }
 
+  /**
+   * 清掉某用户除指定会话之外的全部会话。
+   *
+   * 改密码要的正是这个语义：踢掉别处的登录，留住正在操作的这一个。
+   * 用「删光再靠后续写操作把当前会话复活」是不可靠的——express-session 在
+   * resave:false 下按加载时的哈希判断是否回写，赋一个相同的值不会触发保存。
+   */
+  async deleteByUserExcept(userId: string, exceptSid: string): Promise<number> {
+    const result = await this.db
+      .deleteFrom('sessions')
+      .where('user_id', '=', userId)
+      .where('sid', '!=', exceptSid)
+      .executeTakeFirst();
+    return Number(result.numDeletedRows ?? 0);
+  }
+
   async deleteExpired(nowIsoString: string): Promise<number> {
     const result = await this.db
       .deleteFrom('sessions')

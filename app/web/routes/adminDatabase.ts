@@ -1,7 +1,6 @@
 import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { DB_DRIVERS, SQLITE_MEMORY, type DbConnectionConfig } from '../../db/dialects.js';
-import { dbManager } from '../../db/manager.js';
 import { AppError } from '../../errors/AppError.js';
 import { dbSwitchService, type ConnectionProbe } from '../../services/dbSwitchService.js';
 import { requireSuperAdmin } from '../middleware/auth.js';
@@ -28,7 +27,8 @@ const targetSchema = z.object({
   database: z.string().trim().max(64).optional(),
   user: z.string().trim().max(64).optional(),
   password: z.string().max(255).optional(),
-  ssl: z.string().optional()
+  ssl: z.string().optional(),
+  sslInsecure: z.string().optional()
 });
 
 const switchSchema = targetSchema.extend({
@@ -49,6 +49,7 @@ function toConnectionConfig(input: z.infer<typeof targetSchema>): DbConnectionCo
     throw new AppError('invalid_input', { meta: { missing: 'host/database/user' } });
   }
 
+  const ssl = input.ssl === 'on';
   return {
     driver: input.driver,
     host: input.host,
@@ -56,7 +57,9 @@ function toConnectionConfig(input: z.infer<typeof targetSchema>): DbConnectionCo
     database: input.database,
     user: input.user,
     password: input.password ?? '',
-    ssl: input.ssl === 'on'
+    ssl,
+    // 不开 TLS 时这个开关没有意义，别把它落进配置文件制造语义死区
+    sslInsecure: ssl && input.sslInsecure === 'on'
   };
 }
 
@@ -69,7 +72,7 @@ function targetName(config: DbConnectionConfig): string {
 function formValues(req: Request): Record<string, string> {
   const body = req.body as Record<string, unknown>;
   const out: Record<string, string> = {};
-  for (const key of ['driver', 'file', 'host', 'port', 'database', 'user', 'ssl']) {
+  for (const key of ['driver', 'file', 'host', 'port', 'database', 'user', 'ssl', 'sslInsecure']) {
     const value = body[key];
     if (typeof value === 'string') out[key] = value;
   }
@@ -182,15 +185,3 @@ adminDatabaseRouter.post('/admin/database/switch', requireSuperAdmin, (req, res,
     }
   })();
 });
-
-/** 供其它模块查询当前连接摘要（例如设置页展示）。 */
-export function currentConnectionSummary(): string {
-  try {
-    const config = dbManager.currentConfig();
-    return config.driver === 'sqlite'
-      ? `sqlite:${config.file}`
-      : `${config.driver}://${config.host}`;
-  } catch {
-    return '未连接';
-  }
-}

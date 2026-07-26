@@ -3,11 +3,13 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Express } from 'express';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../app/app.js';
 import { createKysely } from '../../app/db/dialects.js';
 import { dbManager } from '../../app/db/manager.js';
 import { runMigrations } from '../../app/db/migrator.js';
+import { AppError } from '../../app/errors/AppError.js';
+import { leaderboardService } from '../../app/services/leaderboardService.js';
 import { settingsService } from '../../app/services/settingsService.js';
 import {
   importLegacyData,
@@ -201,5 +203,52 @@ describe('错误出口', () => {
     const response = await request(app).get('/api/v1/gamemodes');
     expect(response.status).toBe(200);
     expect(response.body).toHaveProperty('gamemodes');
+  });
+
+  it.each([
+    ['普通 Error', new Error('boom')],
+    ['内部 AppError', new AppError('db_target_not_empty', { meta: { secret: 'x' } })]
+  ])('API 的内部错误一律收敛成同一个英文 500 信封（%s）', async (_label, thrown) => {
+    /*
+     * 公开 API 对外承诺的错误码只有 5 个（见 ApiDocs 与 README）。让 AppError
+     * 沿用自己的 code 会把 errors/codes.ts 那张 44 条内部码表接到匿名端点上，
+     * 于是 `db_target_not_empty`、`cannot_modify_super` 这类内部管理词汇会外泄，
+     * 还会产出 `404 + "unexpected server error"` 这种自相矛盾的信封。
+     * 这条用例锁住「内部错误码不出网」。
+     */
+    const spy = vi.spyOn(leaderboardService, 'listRanked').mockRejectedValue(thrown);
+    try {
+      const response = await request(app).get('/api/v1/rankings');
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({
+        error: 'internal_error',
+        message: 'unexpected server error'
+      });
+      // 信封里不该出现任何内部码名或中文
+      expect(response.text).not.toContain('db_target_not_empty');
+      // eslint-disable-next-line no-control-regex -- 断言的就是「不含非 ASCII」
+      expect(/^[\x00-\x7F]*$/.test(response.text)).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe('匿名请求不建立会话', () => {
+  it('反复匿名 GET 既不下发 cookie 也不产生 sessions 行', async () => {
+    /*
+     * 这些都是被机器人反复命中的公开路径。若 CSRF 令牌被无条件铸造，
+     * 每次命中都会改动会话，于 saveUninitialized:false 之下仍然落一行
+     * sessions 并下发 Set-Cookie——写放大之外，带 Set-Cookie 的响应也
+     * 不可能被任何共享缓存复用。
+     */
+    await dbManager.db().deleteFrom('sessions').execute();
+
+    for (const path of ['/', '/', '/api/docs', '/no-such-page', '/api/v1/gamemodes']) {
+      const response = await request(app).get(path);
+      expect(response.headers['set-cookie'], `${path} 不该下发 cookie`).toBeUndefined();
+    }
+
+    expect(await dbManager.db().selectFrom('sessions').selectAll().execute()).toEqual([]);
   });
 });

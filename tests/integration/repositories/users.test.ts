@@ -130,6 +130,29 @@ describe('UserRepository', () => {
     expect(await users.findById(created.id)).toBeNull();
   });
 
+  it('deleteByUserExcept 只留下指定的那一个会话', async () => {
+    // 改密码要的正是这个语义：踢掉别处的登录，留住正在操作的这一个
+    const owner = await users.create(sampleUser);
+    const other = await users.create({
+      ...sampleUser,
+      username: 'Other',
+      email: 'other@example.com'
+    });
+    const expiresAt = new Date(Date.now() + 60_000).toISOString();
+
+    for (const sid of ['keep', 'drop-1', 'drop-2']) {
+      await sessions.set({ sid, userId: owner.id, data: '{}', expiresAt });
+    }
+    await sessions.set({ sid: 'someone-else', userId: other.id, data: '{}', expiresAt });
+
+    expect(await sessions.deleteByUserExcept(owner.id, 'keep')).toBe(2);
+    expect(await sessions.get('keep')).not.toBeNull();
+    expect(await sessions.get('drop-1')).toBeNull();
+    expect(await sessions.get('drop-2')).toBeNull();
+    // 别人的会话不受影响
+    expect(await sessions.get('someone-else')).not.toBeNull();
+  });
+
   it('findFirstByRole 按创建时间取最早一条', async () => {
     await users.create({ ...sampleUser, role: 'SuperAdmin' });
     await users.create({

@@ -96,11 +96,49 @@ app/
 明文存储意味着数据库一旦只读泄露就能直接冒用。`services/verificationService.ts`
 是验证码的唯一实现，`verify_email` 与 `reset_password` 共用同一套状态机。
 
+**CSRF 令牌是惰性铸造的。** `csrfProtection` 对 GET/HEAD/OPTIONS 什么都不做，令牌只在
+视图真的读 `ctx.csrfToken`（即页面上有 POST 表单）时才写进会话。原因是写放大：往会话上
+写任何东西都会让 `saveUninitialized: false` 失效，于是每次匿名 GET——包括 404——都落一行
+`sessions` 并下发 `Set-Cookie`，机器人每命中一个公开页就是一次 INSERT，且所有 HTML
+响应都不再可能被共享缓存复用。因此**不要在中间件里无条件调用 `currentCsrfToken()`**。
+推论：会话里没有令牌的 POST 一律 403（`tests/integration/authRoutes.test.ts` 守着这条）。
+
+**防账号枚举**要同时守住三个维度：状态码、正文、**耗时**。登录失败一律
+「账号或密码错误」；`/forgot` 与 `/resend-verification` 无论邮箱存不存在都走同一条
+PRG（Location 里回显的是提交者自己给的邮箱，不构成信道）。三个容易破的点：
+
+- 「账号不存在」分支里的占位 bcrypt 哈希**必须合法**（60 字符）。bcryptjs 对长度不符的
+  串直接返回 false 而不做任何计算，一个形似的假串会让 200ms 的时间差直接暴露账号是否
+  存在。占位哈希由 `authService.placeholderPasswordHash(cost)` 惰性生成并按 cost 缓存。
+- **发信绝不能 await。** 不存在的邮箱在 service 里直接 return（毫秒级），存在的要等一次
+  Resend 往返（约 1.2 秒）。await 就等于把枚举信道搬到响应耗时上，而且比状态码信道更
+  好用：一个请求判定一个邮箱，不需要 cookie、不需要连发两次。两条路由都走
+  `dispatchMail()`，它负责 fire-and-forget **并把失败记进日志**——吞掉异常而不记日志
+  就是 `errorHandler` 注释里点名批判的那种静默降级。
+- 账号级冷却（`verification_codes.last_sent_at`）只会对**真实存在**的账号触发，因此
+  `cooldown_active` 绝不能渲染给用户。发信页的冷却提示走会话级的 `session.mailCooldown`
+  （连提交的邮箱一起记，好让打错地址的人改正后不必干等）——它只取决于你自己刚填了
+  什么，所以不构成信道。相应地，这两条路径的成功文案必须是
+  `auth.codeSentIfRegistered`（「若该邮箱已注册…」）而不是断定式的「已发送」。
+
+**尚未关闭的信道**（改的话会牺牲可用性，属产品决策）：`POST /verify` 与 `POST /reset`
+对「账号不存在」返回 `code_expired`、对「验证码错误」返回 `code_invalid` + 剩余次数，
+两者文案不同。已用 `codeLimiter` 限流，但要彻底关闭需要把三条码表文案统一并去掉
+「还有 N 次尝试机会」这个提示。
+
 ### 错误与文案
 
 `AppError(code, { meta })` 是唯一的业务异常类型，码表在 `errors/codes.ts`
-（码 → HTTP 状态 → 中文文案）。`errorHandler` 只有两个出口：`/api/v1/*` 走
-JSON 信封 `{ error, message }`；其余渲染错误页。
+（码 → HTTP 状态 → 中文文案）。`errorHandler` 有两个出口：`/api/v1/*` 走 JSON 信封
+`{ error, message }`；其余渲染错误页。
+
+`apiV1Router` 末尾还有**第三个**出口，它只服务 `/api/v1/*` 且刻意与上面两个不同：
+一律 `500 { error: 'internal_error', message: 'unexpected server error' }`，**不**沿用
+AppError 的 code 与 status。理由是对外承诺的错误码只有 5 个（见 `ApiDocs` 与 README），
+沿用内部码会把 `errors/codes.ts` 那张 44 条的表接到匿名端点上（`db_target_not_empty`、
+`cannot_modify_super` 之类），还会产出 `404 + "unexpected server error"` 这种自相矛盾的
+信封。注意路径匹配的缝隙：`/api/v1foo`、`/api/v1.json` 这类**不会**进 apiV1Router，
+会落到 app 级 `errorHandler`，因而拿到中文文案且没有 CORS 头。
 
 跨重定向的提示只走 **PRG + session flash**（`setFlash(req, kind, id)`），
 文案键在 `web/shared/messages.ts`。不要再引入 `?error=code` 这类查询参数机制。
@@ -123,12 +161,28 @@ JSON 信封 `{ error, message }`；其余渲染错误页。
 因此全新部署零配置可跑。`/admin/database`（仅 SuperAdmin）提供测试连接与切换。
 
 `services/dbSwitchService.ts` 的安全性来自一条不变量：**active 指针在全部工作成功之前
-绝不移动**。顺序是「连接 → 迁移 → 校验目标 → 维护模式 → 复制 → 逐表核对 → 写配置 → 切指针 →
-清会话」，任何一步失败都只需丢掉目标连接，旧库从未被写。切库后所有会话失效
-（会话不跨库搬迁），面板会提示重新登录。
+绝不移动**。切指针**之前**的顺序是「连接 → 迁移 → 校验目标 → 维护模式 → 复制 → 逐表核对 →
+写配置」，其中任何一步失败都只需丢掉目标连接，旧库从未被写。切指针之后还有两步收尾
+（清会话、保障 SuperAdmin），它们会写**目标**库，所以不在「可丢弃」的范围内。切库后所有
+会话失效（会话不跨库搬迁），面板会提示重新登录。
+
+收尾里的 SuperAdmin 保障是必须的：切库会清空全部会话，而 `direct` 模式只校验结构版本、
+完全不看有没有用户——切到一个「已迁移但空」的库就再没人能登回来了。但它**只在目标库
+完全没有 SuperAdmin 时才动手**，绝不无条件调用 `ensureSuperAdmin()`：那个函数不止
+「缺则补」一件事，它还会把 `ADMIN_USERNAME` 同名的既有账号提升为 SuperAdmin，于是
+「切一次库」会顺带变成「给目标库里那个叫 admin 的普通用户提权」，并且每切一次就把
+`ADMIN_PASSWORD` 重新变成一条可用凭据。它排在切指针**之后**且只记日志不抛：此刻切换
+已经成功，为一次 seed 失败把它报成失败会破坏上面那条不变量。
+
+TLS 默认**校验证书**。自签证书、私有 CA 或按 IP 连接（证书几乎不带 IP SAN）时才需要在
+面板上勾「跳过证书校验」（配置字段 `sslInsecure`）——只加密不认证挡不住中间人，所以它
+必须是显式选择，且会在 `describeConnection()` 的摘要里标出来，免得勾上之后再没人记得。
+`tests/unit/dialects.test.ts` 守住这个默认值（那两条分支在集成测试里从不真的建连）。
 
 目标库连不上导致进程起不来时，用 `FORCE_SQLITE=1` 强制回退，或直接删除
-`data/db-config.json`。
+`data/db-config.json`。若是证书校验失败（`SELF_SIGNED_CERT_IN_CHAIN` 等），手动在
+`data/db-config.json` 里加 `"sslInsecure": true` 即可——注意这两条救急路径中，前者会落到
+一个空的 SQLite 文件上，别误判成数据丢了。
 
 ### 三级 RBAC
 
@@ -158,7 +212,10 @@ CSP 已收紧到 `style-src 'self'`（零内联样式，动态值走属性如 `<
 
 - **`SESSION_SECRET`**：生产环境**必须**设置，缺失直接启动失败（旧站是静默用随机值）。
   它同时用于会话签名与验证码 HMAC 派生。
-- `APP_BASE_URL`：拼装 Microsoft OAuth 的 `redirect_uri`，必须与 Azure 应用注册里登记的完全一致。
+- **`APP_BASE_URL`**：生产环境**同样必须**设置，缺失直接启动失败。它不只是拼 Microsoft
+  OAuth 的 `redirect_uri`（必须与 Azure 应用注册里登记的完全一致）——`isHttps` 也从它推导，
+  一旦退回 `http://localhost:PORT`，会话 cookie 会静默丢掉 `Secure`、CSP 会丢掉
+  `upgrade-insecure-requests`。三件事都不报错，所以按 `SESSION_SECRET` 的先例拒绝启动。
 - `EMAIL_FROM`：必须是 RFC 5322 形式且域名已在 Resend 验证，否则 4xx。
 - `MS_OAUTH_CLIENT_SECRET`：只从环境变量读，不入库、不在后台表单出现。
 - `DATA_DIR`：数据目录，默认 `<cwd>/data`。旧站也支持（用于隔离测试）。
@@ -171,14 +228,30 @@ SDK 的收益不抵依赖成本。这个取舍从旧站延续，请勿引入 `re
 
 新站已通过全部门禁与生产形态冒烟，但**尚未接管流量**。切换需要人工决定时机，步骤：
 
-1. **确认服务器 Node ≥ 22**，且 `.env` 里有 `SESSION_SECRET`（新站缺失会拒绝启动）。
+1. **确认服务器 Node ≥ 22**，且 `.env` 里有 `SESSION_SECRET` **与 `APP_BASE_URL`**
+   （两者缺任一都会拒绝启动）。
 2. 停旧站，**备份 `data/*.json`**。
 3. `npm run db:import -- --dry-run` 看报告，确认用户/条目/定级数量与排名前 10 名一致。
    有「只差大小写的重复账号」时会中止并列出，需人工处理后重跑。
+   **同时核对报告最后一行的 SuperAdmin 清单**：旧站把 `role === 'admin'` 也算 SuperAdmin，
+   导入会忠实沿用这条规则，于是旧数据里有几个这样的账号就会有几个 SuperAdmin。而新站
+   不允许对 SuperAdmin 降级或删除，多出来的那些在后台里动不了——若不是预期结果，
+   先改旧数据里的 `role` 再重跑。
 4. `npm run db:import` 正式导入（幂等，可重跑）。
 5. `npm run build`。
 6. 把 `ecosystem.config.cjs` 的 `script` 改为 `dist/server/server.js`，
-   `package.json` 的 `start` 改为 `node dist/server/server.js`。
+   `package.json` 的 `start` 改为 `node dist/server/server.js`，
+   并给 PM2 加上 `env: { NODE_ENV: 'production' }`。
+
+   **`NODE_ENV=production` 这一项不能漏**：`SESSION_SECRET` 与 `APP_BASE_URL` 的强制
+   校验、会话 cookie 的 `Secure`、CSP 的 `upgrade-insecure-requests` 全都挂在它上面。
+   仓库里目前没有任何地方设它（`.env.example` 是 `development`，PM2 配置没有 `env` 块，
+   CI 也不设），所以不显式加的话上面那些保护**一条都不会生效**，而且不会有任何报错。
+   启动日志会打出 `（NODE_ENV=…）`，用它确认。
+
+   **不要顺手加 `instances`**：进程内状态（维护标志、设置缓存、限流计数、DbManager 的
+   连接指针）都是每 worker 一份，cluster 模式下一次切库只会移动其中一个 worker 的指针。
+
 7. `pm2 restart subtier`，跑冒烟：首页、`/api/docs`、四个 API 端点、登录、后台。
 8. 观察外部机器人对 `/api/v1/*` 的调用 48 小时。
 9. 稳定后再删除 `src/`、`views/`、`public/`、`src/package.json`，

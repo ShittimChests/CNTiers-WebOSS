@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AppError } from '../../app/errors/AppError.js';
+import { placeholderPasswordHash } from '../../app/services/authService.js';
 import { createServices, type TestServices } from '../helpers/services.js';
 import { createTestDb, type TestDb } from '../helpers/testDb.js';
 
@@ -166,6 +167,24 @@ describe('AuthService · 登录', () => {
     );
     const noSuchUser = await expectAppError(s.auth.login('nobody', 'wrong'), 'invalid_credentials');
     expect(wrongPassword.message).toBe(noSuchUser.message);
+  });
+
+  it('占位哈希是真实的 bcrypt 哈希（否则防枚举会被长度短路掉）', async () => {
+    const hash = await placeholderPasswordHash(s.bcryptCost);
+
+    /*
+     * 这条断言守的是一个具体的坑：bcryptjs 在 hash.length !== 60 时直接
+     * resolve(false)，一次哈希运算都不做。旧实现的占位串是 65 字符的
+     * '$2a$12$invalid…'，于是「账号不存在也走一次比较」形同虚设——实测
+     * 长度不对的假串 0.2ms 返回，合法 cost-12 哈希约 210ms，200ms 的差值
+     * 从外部就能区分账号是否存在。
+     */
+    expect(hash).toHaveLength(60);
+    expect(hash.startsWith('$2')).toBe(true);
+    expect(await bcrypt.compare('whatever', hash)).toBe(false);
+
+    // 同一 cost 复用同一份，不在每次失败登录上重复付哈希开销
+    expect(await placeholderPasswordHash(s.bcryptCost)).toBe(hash);
   });
 
   it('未验证账号被拒绝登录', async () => {

@@ -146,6 +146,15 @@ export function AdminDatabasePage({
                 <input type="checkbox" name="ssl" value="on" checked={form['ssl'] === 'on'} />
                 使用 SSL
               </label>
+              <label class="db-ssl">
+                <input
+                  type="checkbox"
+                  name="sslInsecure"
+                  value="on"
+                  checked={form['sslInsecure'] === 'on'}
+                />
+                跳过证书校验（自签证书、私有 CA，或按 IP 连接时才需要）
+              </label>
             </fieldset>
 
             <div class="cluster">
@@ -184,7 +193,9 @@ export function AdminDatabasePage({
             <input type="hidden" name="port" value={form['port'] ?? ''} />
             <input type="hidden" name="database" value={form['database'] ?? ''} />
             <input type="hidden" name="user" value={form['user'] ?? ''} />
+            {/* 两个表单是独立提交的，这排镜像少一项就会出现「测试通过、切换失败」 */}
             <input type="hidden" name="ssl" value={form['ssl'] ?? ''} />
+            <input type="hidden" name="sslInsecure" value={form['sslInsecure'] ?? ''} />
 
             <Field
               name="password"
