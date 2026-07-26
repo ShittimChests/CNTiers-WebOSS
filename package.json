@@ -2,11 +2,31 @@
   "name": "subtierwebsite",
   "version": "1.0.0",
   "description": "中文 Minecraft 1.9+ PvP Subtier 榜单网站",
-  "main": "src/server.js",
+  "main": "dist/server/server.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "test": "node --test"
+    "start:next": "node dist/server/server.js",
+    "dev": "tsx watch app/server.ts",
+    "dev:assets": "vite build --watch",
+    "dev:legacy": "nodemon src/server.js",
+    "build": "npm run build:assets && npm run build:server",
+    "build:assets": "vite build",
+    "build:server": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json && tsc -p tsconfig.tools.json",
+    "lint": "eslint . && stylelint \"app/**/*.css\" --allow-empty-input && prettier --check .",
+    "lint:fix": "eslint . --fix && stylelint \"app/**/*.css\" --allow-empty-input --fix && prettier --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:repo": "vitest run tests/integration/repositories",
+    "check:inline": "tsx scripts/check-inline.ts",
+    "check:contrast": "tsx scripts/check-contrast.ts",
+    "db:smoke": "tsx scripts/smoke-db.ts",
+    "db:import": "tsx scripts/migrate-json.ts",
+    "golden:record": "tsx scripts/record-golden.ts",
+    "check:budget": "tsx scripts/check-budget.ts"
   },
   "repository": {
     "type": "git",
@@ -19,13 +39,14 @@
   ],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/ItzArona/SubtierWebsite/issues"
   },
   "homepage": "https://github.com/ItzArona/SubtierWebsite#readme",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.1",
     "compression": "^1.8.1",
     "csurf": "^1.11.0",
     "dotenv": "^17.4.2",
@@ -35,9 +56,39 @@
     "express-rate-limit": "^8.3.2",
     "express-session": "^1.19.0",
     "helmet": "^8.1.0",
+    "kysely": "^0.29.4",
+    "mysql2": "^3.23.1",
+    "pg": "^8.22.0",
+    "preact": "^10.29.7",
+    "preact-render-to-string": "^6.7.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "@eslint/js": "^10.0.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/compression": "^1.8.1",
+    "@types/express": "^5.0.6",
+    "@types/express-session": "^1.19.0",
+    "@types/node": "^26.1.1",
+    "@types/pg": "^8.20.0",
+    "@types/supertest": "^7.2.1",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "nodemon": "^3.1.14",
+    "prettier": "^3.9.6",
+    "stylelint": "^17.14.1",
+    "stylelint-config-standard": "^40.0.0",
+    "stylelint-declaration-strict-value": "^1.11.1",
+    "supertest": "^7.2.2",
+    "tsx": "^4.23.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.65.0",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
+  },
+  "allowScripts": {
+    "better-sqlite3@13.0.1": true,
+    "esbuild@0.28.1": true
   }
 }

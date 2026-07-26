@@ -1,0 +1,13 @@
+node_modules/
+.claude/
+dist/
+coverage/
+data/
+package-lock.json
+
+# 待退役的旧站代码，不做格式化
+src/
+views/
+public/
+
+tests/golden/

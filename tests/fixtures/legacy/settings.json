@@ -1,0 +1,12 @@
+{
+  "registrationEnabled": true,
+  "oauthEnabled": true,
+  "oauthMicrosoft": {
+    "clientId": "fixture-client-id",
+    "tenant": "common"
+  },
+  "migrations": {
+    "categoryRenames_v1": true,
+    "userSchema_v1": false
+  }
+}

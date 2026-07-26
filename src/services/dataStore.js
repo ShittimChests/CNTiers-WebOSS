@@ -2,7 +2,10 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const bcrypt = require('bcryptjs');
 
-const DATA_DIR = path.resolve(__dirname, '../../data');
+// DATA_DIR 可由环境变量覆盖（默认行为不变），便于在隔离目录里录制 API 契约基线
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.resolve(__dirname, '../../data');
 const LEADERBOARD_FILE = path.join(DATA_DIR, 'leaderboard.json');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');

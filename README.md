@@ -1,60 +1,104 @@
 # CN Subtiers
 
-中文 Minecraft 1.9+ PvP Subtier 榜单网站，支持：
+中文 Minecraft 1.9+ PvP Subtier 榜单网站。
 
-- 如需初始化榜单，可在仓库根目录放置 `1.9+Subtier Overall(1).xlsx`，启动时会自动导入
-- 前台展示榜单（搜索玩家、展示各模式 Subtier）
-- 管理员后台（登录验证 + 新增/编辑/删除榜单）
-- 安全能力（会话管理、CSRF 防护、登录限流、输入校验、安全响应头）
+- 公开榜单：搜索、多列排序、段位徽章、各细分项目定级
+- 账号体系：注册（邮箱验证码）、密码重置、Microsoft 账户登录与绑定
+- 管理后台：条目增删改、细分项目管理、站点设置、用户管理、CSV 导出
+- 数据库可切换：默认 SQLite 零配置，可在后台切到 PostgreSQL 或 MySQL
+- 公开只读 API：`/api/v1/`，供外部机器人使用
 
 ## 快速开始
 
+需要 **Node 22 或更高版本**。
+
 ```bash
 npm install
-cp .env.example .env
-npm run dev
+cp .env.example .env      # 开发态可留空；生产必须填 SESSION_SECRET 与 APP_BASE_URL
+npm run build             # 构建前端资产与服务端产物
+npm run dev               # 开发模式（另开一个终端跑 npm run dev:assets）
 ```
 
-启动后访问：
+访问 `http://localhost:3000/`。首次启动会用 `ADMIN_USERNAME` / `ADMIN_PASSWORD`
+创建管理员账号（默认 `admin` / `ChangeMe_12345`，请尽快修改）。
 
-- 前台：`http://localhost:3000/`
-- 后台登录：`http://localhost:3000/admin/login`
+数据默认落在 `data/subtier.db`（SQLite）。要从旧版的 JSON 数据导入：
 
-## 默认管理员
-
-如果没有配置环境变量，系统会自动创建默认管理员：
-
-- 用户名：`admin`
-- 密码：`ChangeMe_12345`
-
-> 强烈建议在 `.env` 中修改为你自己的安全账号密码。
+```bash
+npm run db:import -- --dry-run    # 先看报告，不写入
+npm run db:import                 # 正式导入（幂等，可重跑）
+```
 
 ## 环境变量
 
-参考 `.env.example`：
+参考 `.env.example`。生产环境有两个变量**必须**设置，缺任一进程都会拒绝启动：
 
-- `PORT`：端口
-- `NODE_ENV`：运行环境（生产环境请使用 `production`）
-- `SESSION_SECRET`：会话密钥（生产环境必须设置高强度随机值）
-- `ADMIN_USERNAME`：管理员用户名
-- `ADMIN_PASSWORD`：管理员密码（首次启动时用于初始化）
+- `SESSION_SECRET`：同时用于会话签名与验证码 HMAC 派生，因此**至少 32 个字符**（过短同样拒绝启动）。
+  生成：`node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`。
+- `APP_BASE_URL`：站点对外地址。`isHttps` 从它推导，一旦退回 `http://localhost:PORT`，
+  会话 cookie 会静默丢掉 `Secure`、CSP 会丢掉 `upgrade-insecure-requests`，
+  Microsoft OAuth 的 `redirect_uri` 也会拼错——三件事都不报错，所以宁可不启动。
 
-## 外部 API
+注册与密码重置需要 `RESEND_API_KEY` 与 `EMAIL_FROM`；Microsoft 登录需要
+`MS_OAUTH_CLIENT_ID`（也可在后台填）与 `MS_OAUTH_CLIENT_SECRET`（只能放环境变量）。
 
-只读 JSON 接口，挂在 `/api/v1/` 下，公开访问、按 IP 限流（60 次/分钟）、允许跨域。详细设计见 [docs/superpowers/specs/2026-05-12-public-api-design.md](docs/superpowers/specs/2026-05-12-public-api-design.md)。
+## 部署
 
 ```bash
-# 列出全部 gamemode
+npm ci
+npm run build
+pm2 start ecosystem.config.cjs
+```
+
+应用名 `subtier`，512M 内存重启阈值。站点设计为跑在 Cloudflare Tunnel 之后
+（`trust proxy` 设为一跳）。
+
+## 数据库
+
+默认 SQLite，单文件零运维。需要切到 PostgreSQL 或 MySQL 时，以超级管理员身份进入
+**后台 → 数据库**：先「测试连接」确认可达，再「迁移并切换」把现有数据搬过去。
+
+切换过程中读请求照常，写请求短暂返回 503；任何一步失败都会保持使用原数据库。
+切换完成后所有人需要重新登录（会话不跨库搬迁）。
+
+目标数据库宕机导致进程起不来时，设 `FORCE_SQLITE=1` 强制回退，或删除
+`data/db-config.json`。
+
+## 开放 API
+
+只读 JSON 接口，公开访问、允许跨域、无需鉴权。按 IP 限流 60 次/分钟，
+成功响应缓存 60 秒。完整说明见站内 `/api/docs`。
+
+```bash
+# 全部细分项目
 curl http://localhost:3000/api/v1/gamemodes
 
 # 总榜（默认 50 条）
 curl 'http://localhost:3000/api/v1/rankings?limit=20&offset=0'
 
-# 单个 gamemode 的 tier 排名（5 个 tier 桶，每桶 count 条，HT 优先于 LT）
-curl 'http://localhost:3000/api/v1/rankings/Cart?count=10&offset=0'
+# 某个项目的定级榜（5 个 tier 桶，count 是每桶条数）
+curl 'http://localhost:3000/api/v1/rankings/Sword?count=10'
 
-# 单个玩家详情（包含所有 gamemode 的 tier 段位，未上榜为 null）
+# 单个玩家（含全部项目的定级，未定级为 null）
 curl http://localhost:3000/api/v1/players/SharkIrene
 ```
 
-错误响应统一形如 `{ "error": "code", "message": "..." }`。错误码：`invalid_query` (400)、`not_found` / `gamemode_not_found` (404)、`rate_limited` (429)、`internal_error` (500)。
+错误响应统一为 `{ "error": "code", "message": "..." }`。错误码：`invalid_query` (400)、
+`not_found` / `gamemode_not_found` (404)、`rate_limited` (429)、`internal_error` (500)。
+
+v1 的字段只增不改；破坏性调整会以 v2 路径发布。
+
+## 开发
+
+```bash
+npm run typecheck   # 类型检查
+npm run lint        # eslint + stylelint + prettier
+npm test            # vitest
+npm run build       # 产物
+```
+
+其它检查：`check:inline`（视图层零内联样式/事件）、`check:contrast`（设计 token 对比度）、
+`check:budget`（前端产物体积预算）。开发模式下 `/styleguide` 可以看到全部组件。
+
+技术栈：TypeScript、Express 5、Preact（服务端渲染，无 hydration）、Kysely、
+Vite、Vitest。详细架构说明见 `CLAUDE.md`。

@@ -1,0 +1,60 @@
+/**
+ * 少量布局原语。存在的目的是让组件里不再出现一次性的
+ * display:grid / gap 内联样式（旧站有 37 处这类内联）。
+ */
+@layer layout {
+  .container {
+    width: 100%;
+    max-width: var(--container-max);
+    margin-inline: auto;
+    padding-inline: var(--space-4);
+  }
+
+  /* 纵向堆叠，间距可用 --stack-gap 覆盖 */
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--stack-gap, var(--space-4));
+  }
+
+  /* 横向排布，自动换行 */
+  .cluster {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--cluster-gap, var(--space-2));
+  }
+
+  .cluster--between {
+    justify-content: space-between;
+  }
+
+  .skip-link {
+    position: absolute;
+    left: var(--space-4);
+    top: var(--space-4);
+    z-index: var(--z-dialog);
+    padding: var(--space-2) var(--space-3);
+    background: var(--gold);
+    color: var(--gold-ink);
+    border-radius: var(--radius-2);
+    font-weight: var(--weight-bold);
+    transform: translateY(-200%);
+  }
+
+  .skip-link:focus {
+    transform: translateY(0);
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}

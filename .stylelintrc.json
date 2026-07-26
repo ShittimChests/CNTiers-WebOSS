@@ -1,0 +1,61 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "plugins": ["stylelint-declaration-strict-value"],
+  "ignoreFiles": ["public/**/*.css", "dist/**/*.css", "node_modules/**"],
+  "rules": {
+    "scale-unlimited/declaration-strict-value": [
+      [
+        "/color$/",
+        "color",
+        "background",
+        "fill",
+        "stroke",
+        "font-size",
+        "font-family",
+        "font-weight",
+        "line-height",
+        "z-index",
+        "border-radius",
+        "box-shadow"
+      ],
+      {
+        "ignoreValues": [
+          "transparent",
+          "currentcolor",
+          "currentColor",
+          "inherit",
+          "initial",
+          "unset",
+          "none",
+          "0",
+          "auto",
+          "bold",
+          "normal",
+          "1"
+        ],
+        "disableFix": true
+      }
+    ],
+    "custom-property-pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+    "selector-class-pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*(__[a-z0-9]+(-[a-z0-9]+)*)?(--[a-z0-9]+(-[a-z0-9]+)*)?$",
+    "selector-max-id": 0,
+    "declaration-no-important": true,
+    "no-descending-specificity": null,
+    "property-no-vendor-prefix": null
+  },
+  "overrides": [
+    {
+      "files": ["app/styles/tokens.css", "app/styles/reset.css"],
+      "rules": {
+        "scale-unlimited/declaration-strict-value": null
+      }
+    },
+    {
+      "//": "prefers-reduced-motion 必须用 !important 才能压过组件内的动画声明，这是无障碍重置的标准写法。",
+      "files": ["app/styles/reset.css"],
+      "rules": {
+        "declaration-no-important": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "//": "现役旧站是 CommonJS。根 package.json 已切换为 ESM（新代码与 Kysely 等纯 ESM 依赖需要），这个嵌套 package.json 让 src/ 下的旧代码继续按 CommonJS 解析。M8 删除旧代码时一并删除本文件。",
+  "type": "commonjs"
+}

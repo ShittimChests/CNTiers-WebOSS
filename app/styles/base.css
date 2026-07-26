@@ -1,0 +1,75 @@
+/** 元素级默认样式。组件样式不写在这里。 */
+@layer base {
+  body {
+    background: var(--bg-0);
+    color: var(--text-1);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    font-weight: var(--weight-normal);
+    line-height: var(--leading-normal);
+
+    /* 中文正文不加字距——旧站全局 letter-spacing 让中文显得松散 */
+    letter-spacing: normal;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-weight: var(--weight-bold);
+    line-height: var(--leading-tight);
+    text-wrap: balance;
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+  }
+
+  a {
+    color: var(--link);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+    transition: color var(--duration-fast) ease;
+  }
+
+  a:hover {
+    color: var(--link-hover);
+  }
+
+  /* 排名、积分等数字列必须等宽，否则滚动时数字会跳动 */
+  :where(td, th, .num) {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 全站统一焦点环，键盘可见、鼠标点击不显示 */
+  :focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  ::selection {
+    background: var(--gold);
+    color: var(--gold-ink);
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-num);
+    font-size: var(--text-sm);
+  }
+}

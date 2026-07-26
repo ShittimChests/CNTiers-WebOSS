@@ -1,0 +1,22 @@
+/**
+ * 样式入口。Vite 打包为单个带 hash 的 CSS。
+ *
+ * 层级顺序在这里一次声明，后续任何文件都不需要靠选择器权重去压过别人——
+ * 这是旧站 `nav#siteNav, #siteNav` 那类提权重写法的根治办法。
+ * 每个被引入的文件自己用 @layer 块包裹内容。
+ */
+@layer reset, tokens, base, layout, components, utilities;
+
+@import url('./reset.css');
+@import url('./tokens.css');
+@import url('./base.css');
+@import url('./layout.css');
+@import url('./components/chrome.css');
+@import url('./components/controls.css');
+@import url('./components/display.css');
+@import url('./components/board.css');
+@import url('./components/admin.css');
+@import url('./components/auth.css');
+@import url('./components/database.css');
+@import url('./components/docs.css');
+@import url('./components/styleguide.css');

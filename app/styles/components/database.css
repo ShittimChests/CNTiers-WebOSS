@@ -1,0 +1,67 @@
+/** 数据库设置面板。 */
+@layer components {
+  .db-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: var(--space-3);
+    font-size: var(--text-sm);
+  }
+
+  .db-facts dt {
+    color: var(--text-3);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+  }
+
+  .db-facts dd {
+    margin: 0;
+    font-family: var(--font-num);
+    overflow-wrap: anywhere;
+  }
+
+  .db-form {
+    max-width: 40rem;
+  }
+
+  .db-drivers {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .db-driver {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    gap: var(--space-2);
+    align-items: baseline;
+    font-size: var(--text-sm);
+  }
+
+  .db-driver__label {
+    font-weight: var(--weight-bold);
+  }
+
+  .db-driver__hint {
+    color: var(--text-3);
+    font-size: var(--text-xs);
+  }
+
+  .db-ssl {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    margin-top: var(--space-3);
+    font-size: var(--text-sm);
+  }
+
+  /*
+   * 按所选驱动显隐字段组，纯 CSS 完成（:has）。
+   * 不支持 :has 的浏览器会看到全部字段组——退化后依然可用，
+   * 这正是渐进增强而非依赖脚本的意义。
+   */
+  .db-form:has(input[name='driver'][value='sqlite']:checked) .db-server,
+  .db-form:has(input[name='driver'][value='postgres']:checked) .db-sqlite,
+  .db-form:has(input[name='driver'][value='mysql']:checked) .db-sqlite {
+    display: none;
+  }
+}

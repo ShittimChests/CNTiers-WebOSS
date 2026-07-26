@@ -1,0 +1,285 @@
+/** 展示类组件：卡片、徽章、积分槽、提示、分页。 */
+@layer components {
+  /* ---------- 图标 ---------- */
+
+  .icon {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.125em;
+    fill: currentcolor;
+  }
+
+  /* ---------- 卡片：靠 1px 边框分层，不用阴影也不用模糊 ---------- */
+
+  .card {
+    padding: var(--space-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-3);
+    background: var(--bg-1);
+  }
+
+  .card__head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: var(--space-4);
+  }
+
+  .card__title {
+    font-size: var(--text-lg);
+  }
+
+  /* 结构性小标签。只在真有分类信息时使用 */
+  .eyebrow {
+    margin-bottom: var(--space-1);
+    color: var(--gold);
+    font-size: var(--text-xs);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  /* ---------- 段位徽章：材质色阶 ---------- */
+
+  .badge {
+    display: inline-block;
+    padding: 0 var(--space-2);
+    border: 1px solid color-mix(in srgb, var(--badge-ink) 40%, transparent);
+    border-radius: var(--radius-1);
+    background: color-mix(in srgb, var(--badge-ink) 14%, transparent);
+    color: var(--badge-ink);
+    font-size: var(--text-xs);
+    line-height: var(--leading-snug);
+    white-space: nowrap;
+  }
+
+  .badge--stone {
+    --badge-ink: var(--tier-stone);
+  }
+
+  .badge--iron {
+    --badge-ink: var(--tier-iron);
+  }
+
+  .badge--copper {
+    --badge-ink: var(--tier-copper);
+  }
+
+  .badge--gold {
+    --badge-ink: var(--tier-gold);
+  }
+
+  .badge--diamond {
+    --badge-ink: var(--tier-diamond);
+  }
+
+  .badge--emerald {
+    --badge-ink: var(--tier-emerald);
+  }
+
+  /*
+   * 最高档：附魔光泽。双层背景做渐变描边——这是全站唯一的渐变，
+   * 用来把"顶级段位"这件事变成一眼可辨的视觉事件。
+   */
+  .badge--netherite {
+    border-color: transparent;
+    background-image:
+      linear-gradient(var(--tier-netherite-bg), var(--tier-netherite-bg)),
+      linear-gradient(100deg, var(--gold), var(--enchant-violet));
+    background-clip: padding-box, border-box;
+    background-origin: border-box;
+    color: var(--tier-netherite-ink);
+  }
+
+  /* ---------- 细分项目 chip ---------- */
+
+  .chip {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: baseline;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-1);
+    background: var(--bg-2);
+    font-size: var(--text-xs);
+    white-space: nowrap;
+  }
+
+  .chip__label {
+    color: var(--text-2);
+  }
+
+  .chip__tier {
+    color: var(--text-1);
+    font-family: var(--font-num);
+    font-weight: var(--weight-bold);
+  }
+
+  /* ---------- 测试服标记 ---------- */
+
+  .tag {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: center;
+    padding: 0 var(--space-2);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-1);
+    color: var(--text-3);
+    font-size: var(--text-xs);
+  }
+
+  /* ---------- 积分槽（签名元素） ---------- */
+
+  /*
+   * 分段式经验槽。用原生 <progress> 承载数值（属性而非内联样式，
+   * 因此 CSP 无需放开 style-src），分格质感由 mask 切出——对应
+   * Minecraft 经验条的分段外观，而不是通用的平滑进度条。
+   */
+  .xpbar {
+    display: block;
+    appearance: none;
+    width: 100%;
+    max-width: 8rem;
+    height: 0.625rem;
+    border: none;
+    background: var(--bg-0);
+    mask-image: repeating-linear-gradient(90deg, #000 0 0.3125rem, transparent 0.3125rem 0.4375rem);
+  }
+
+  .xpbar::-webkit-progress-bar {
+    background: var(--bg-0);
+  }
+
+  .xpbar::-webkit-progress-value {
+    background: var(--ok);
+  }
+
+  .xpbar::-moz-progress-bar {
+    background: var(--ok);
+  }
+
+  /* ---------- 名次奖牌 ---------- */
+
+  .medal {
+    width: 0.875rem;
+    height: 0.875rem;
+  }
+
+  .medal--1 {
+    color: var(--gold);
+  }
+
+  .medal--2 {
+    color: var(--tier-iron);
+  }
+
+  .medal--3 {
+    color: var(--tier-copper);
+  }
+
+  /* ---------- 提示 ---------- */
+
+  .alert {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--alert-ink);
+    border-left-width: var(--space-1);
+    border-radius: var(--radius-2);
+    background: color-mix(in srgb, var(--alert-ink) 10%, transparent);
+    color: var(--text-1);
+    font-size: var(--text-sm);
+  }
+
+  .alert--success {
+    --alert-ink: var(--ok);
+  }
+
+  .alert--error {
+    --alert-ink: var(--danger);
+  }
+
+  .alert--info {
+    --alert-ink: var(--link);
+  }
+
+  .empty {
+    padding: var(--space-6) var(--space-4);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-2);
+    color: var(--text-3);
+    text-align: center;
+  }
+
+  /* ---------- flash 横幅 ---------- */
+
+  .flash {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-5);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--flash-ink);
+    border-left-width: var(--space-1);
+    border-radius: var(--radius-2);
+    background: color-mix(in srgb, var(--flash-ink) 12%, var(--bg-1));
+  }
+
+  .flash--success {
+    --flash-ink: var(--ok);
+  }
+
+  .flash--error {
+    --flash-ink: var(--danger);
+  }
+
+  .flash--info {
+    --flash-ink: var(--link);
+  }
+
+  .flash__text {
+    font-size: var(--text-sm);
+  }
+
+  .flash__close {
+    padding: var(--space-1);
+    border: none;
+    background: none;
+    color: var(--text-2);
+    cursor: pointer;
+  }
+
+  .flash__close:hover {
+    color: var(--text-1);
+  }
+
+  /* ---------- 分页 ---------- */
+
+  .pagination {
+    display: flex;
+    gap: var(--space-4);
+    align-items: center;
+    justify-content: center;
+    margin-top: var(--space-5);
+    font-size: var(--text-sm);
+  }
+
+  .pagination__status {
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pagination__link {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2);
+    color: var(--text-1);
+    text-decoration: none;
+  }
+
+  .pagination__link:hover {
+    border-color: var(--border-strong);
+    color: var(--gold);
+  }
+}

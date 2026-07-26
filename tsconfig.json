@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "rootDir": "app",
+    "outDir": "dist/server",
+    "tsBuildInfoFile": "node_modules/.cache/tsc/server.tsbuildinfo"
+  },
+  "include": ["app/**/*.ts", "app/**/*.tsx"],
+  "exclude": ["app/client/**", "node_modules", "dist"]
+}

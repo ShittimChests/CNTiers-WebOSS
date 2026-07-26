@@ -1,0 +1,104 @@
+/**
+ * 设计 token —— 全站唯一的取值来源。
+ *
+ * 视觉方向「材质段位」：把 Minecraft 的材质进阶（石→铁→铜→金→钻石→绿宝石→
+ * 下界合金）翻译成段位色阶，配 XP 槽式积分条与像素图标。签名元素严格限量，
+ * 其余部分刻意做成安静的扁平深色，把注意力让给榜单本身。
+ *
+ * 纪律：除本文件与 reset.css 外，任何 CSS 都不允许出现字面色值 / 字号 / 圆角，
+ * 由 stylelint 的 declaration-strict-value 强制（旧站曾定义了变量却又用硬编码
+ * 色值绕过，同一语义两套值）。
+ */
+@layer tokens {
+  :root {
+    color-scheme: dark;
+
+    /* --- 底色：黑曜石，极深而带紫偏，不是纯黑 --- */
+    --bg-0: #0f0c16;
+    --bg-1: #171226;
+    --bg-2: #201a33;
+    --border: #2f2749;
+    --border-strong: #443a66;
+
+    /* --- 文字：text-3 仅限大号或次要信息，避免对比度不足 --- */
+    --text-1: #efecf7;
+    --text-2: #b3acc9;
+    --text-3: #8a83a6;
+
+    /* --- 品牌主色：附魔金，用于 CTA 与焦点环 --- */
+    --gold: #f2c14e;
+    --gold-hover: #ffd46a;
+    --gold-ink: #1a1408;
+
+    /* --- 功能色：链接用钻石青与金区隔 --- */
+    --link: #58c7d8;
+    --link-hover: #7fd9e6;
+    --ok: #86c232;
+    --danger: #f26d78;
+    --warn: #e09a3e;
+
+    /* --- 段位色阶（materials ramp）：徽章 = 着色文字 + 同色淡底 + 1px 描边 --- */
+    --tier-stone: #a9aeb8;
+    --tier-iron: #d6dbe2;
+    --tier-copper: #e89a67;
+    --tier-gold: #f2c14e;
+    --tier-diamond: #58c7d8;
+    --tier-emerald: #57d993;
+
+    /* 下界合金：全站唯一允许渐变的地方（"附魔光泽"） */
+    --tier-netherite-bg: #3a2f4d;
+    --tier-netherite-ink: #e4d6ff;
+    --enchant-violet: #a78bfa;
+
+    /* Microsoft 品牌四色，仅用于登录按钮的标识 */
+    --ms-red: #f25022;
+    --ms-green: #7fba00;
+    --ms-blue: #00a4ef;
+    --ms-yellow: #ffb900;
+
+    /* --- 间距：4px 基准 --- */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.5rem;
+    --space-6: 2rem;
+    --space-7: 3rem;
+    --space-8: 4rem;
+
+    /* --- 圆角上限 8px：MC 是方的，告别玻璃拟态的大圆角与胶囊 --- */
+    --radius-1: 2px;
+    --radius-2: 4px;
+    --radius-3: 8px;
+
+    /* --- 字体：中文正文走系统栈，不自托管（全量字库数 MB） --- */
+    --font-body:
+      'Noto Sans SC', 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', system-ui, sans-serif;
+    --font-num: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Consolas', monospace;
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 0.9375rem;
+    --text-lg: 1.125rem;
+    --text-xl: 1.375rem;
+    --text-2xl: 1.75rem;
+    --text-3xl: 2.25rem;
+    --leading-tight: 1.3;
+    --leading-snug: 1.6;
+    --leading-normal: 1.75;
+    --weight-normal: 400;
+
+    /* 系统中文字体缺中间字重，只用两档以避免伪加粗 */
+    --weight-bold: 700;
+
+    /* --- 卡片一律靠 1px 边框分层，阴影只留给浮层 --- */
+    --shadow-pop: 0 8px 24px rgb(0 0 0 / 45%);
+    --focus-ring-width: 2px;
+    --focus-ring-color: var(--gold-hover);
+    --focus-ring-offset: 2px;
+    --duration-fast: 120ms;
+    --duration-base: 160ms;
+    --container-max: 75rem;
+    --z-dialog: 100;
+    --z-header: 50;
+  }
+}

@@ -1,4 +1,20 @@
 node_modules/
 .env
+
+# 开发者本地环境（镜像源、编辑器权限等）
+.npmrc
+
+# 运行期数据（生产数据不进仓库）
 data/*.json
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+data/*.sqlite
+data/db-config.json
 !data/.gitkeep
+
+# 构建产物
+dist/
+coverage/
+*.tsbuildinfo

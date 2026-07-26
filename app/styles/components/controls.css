@@ -1,0 +1,206 @@
+/** 交互控件：按钮与表单字段。 */
+@layer components {
+  /* ---------- 按钮 ---------- */
+
+  .btn {
+    display: inline-flex;
+    gap: var(--space-2);
+    align-items: center;
+    justify-content: center;
+
+    /* 触控目标至少 44px 高 */
+    min-height: 2.75rem;
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-2);
+    background: var(--bg-2);
+    color: var(--text-1);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background var(--duration-fast) ease,
+      border-color var(--duration-fast) ease;
+  }
+
+  .btn:hover {
+    border-color: var(--gold);
+  }
+
+  .btn[disabled] {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .btn--primary {
+    border-color: var(--gold);
+    background: var(--gold);
+    color: var(--gold-ink);
+    font-weight: var(--weight-bold);
+  }
+
+  .btn--primary:hover {
+    border-color: var(--gold-hover);
+    background: var(--gold-hover);
+  }
+
+  .btn--danger {
+    border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+    color: var(--danger);
+  }
+
+  .btn--danger:hover {
+    border-color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 14%, transparent);
+  }
+
+  .btn--ghost {
+    border-color: transparent;
+    background: none;
+    color: var(--text-2);
+  }
+
+  .btn--ghost:hover {
+    border-color: var(--border);
+    color: var(--text-1);
+  }
+
+  .btn--small {
+    min-height: 2rem;
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--text-xs);
+  }
+
+  /* 外观是链接、语义是按钮（退出登录这类必须走 POST 的动作） */
+  .link-button {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--link);
+    font-size: inherit;
+    cursor: pointer;
+  }
+
+  .link-button:hover {
+    color: var(--link-hover);
+    text-decoration: underline;
+  }
+
+  /* ---------- 表单字段 ---------- */
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .field__label {
+    color: var(--text-2);
+    font-size: var(--text-sm);
+  }
+
+  .field__required {
+    margin-left: var(--space-1);
+    color: var(--danger);
+  }
+
+  .field__input {
+    /* 移动端 ≥16px 才不会触发 iOS 自动缩放 */
+    min-height: 2.75rem;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-2);
+    background: var(--bg-0);
+    color: var(--text-1);
+    font-size: var(--text-base);
+  }
+
+  .field__input:hover {
+    border-color: var(--text-3);
+  }
+
+  .field__input[readonly] {
+    background: var(--bg-2);
+    color: var(--text-2);
+  }
+
+  .field__input[aria-invalid='true'] {
+    border-color: var(--danger);
+  }
+
+  .field__hint {
+    color: var(--text-3);
+    font-size: var(--text-xs);
+  }
+
+  .field__error {
+    color: var(--danger);
+    font-size: var(--text-xs);
+  }
+
+  .field--check {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .field--check .field__hint {
+    grid-column: 2;
+  }
+
+  .field__checkbox {
+    width: 1.125rem;
+    height: 1.125rem;
+    accent-color: var(--gold);
+  }
+
+  /* 验证码专用：等宽、拉开字距、居中，六位数字一眼可核对 */
+  .field__input--code {
+    font-family: var(--font-num);
+    font-size: var(--text-xl);
+    letter-spacing: 0.5em;
+    text-align: center;
+  }
+
+  /* ---------- 搜索框 ---------- */
+
+  .search {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-2);
+    background: var(--bg-0);
+    color: var(--text-3);
+  }
+
+  .search:focus-within {
+    border-color: var(--gold);
+  }
+
+  .search__input {
+    flex: 1;
+    min-height: 2.75rem;
+    border: none;
+    background: none;
+    color: var(--text-1);
+    font-size: var(--text-base);
+  }
+
+  .search__input:focus {
+    outline: none;
+  }
+
+  .kbd {
+    padding: 0 var(--space-1);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-1);
+    background: var(--bg-2);
+    color: var(--text-3);
+    font-family: var(--font-num);
+    font-size: var(--text-xs);
+  }
+}

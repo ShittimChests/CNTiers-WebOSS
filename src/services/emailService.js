@@ -45,7 +45,10 @@ function codeEmailShell({ eyebrow, heading, intro, code, footnote }) {
 async function deliver({ to, subject, html, text }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error('RESEND_API_KEY 未配置');
-  const fromAddress = process.env.EMAIL_FROM || 'Subtier Staff <schale@bluearchive.site>';
+  // 不再把某个具体地址写成兜底默认值：配置缺失时应当明确报错，
+  // 而不是悄悄用别人的域名发信（新站的 app/config/env.ts 也是这个语义）
+  const fromAddress = process.env.EMAIL_FROM;
+  if (!fromAddress) throw new Error('EMAIL_FROM 未配置');
   const response = await fetch(RESEND_ENDPOINT, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },

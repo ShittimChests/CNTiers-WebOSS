@@ -1,0 +1,22 @@
+{
+  "//": "仅供 ESLint 的类型感知规则使用：覆盖 app/ 之外的脚本、测试与各类配置文件，这些都不参与 dist 产物。",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": false
+  },
+  "include": [
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "scripts/**/*.ts",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "eslint.config.mjs",
+    "ecosystem.config.cjs"
+  ]
+}
