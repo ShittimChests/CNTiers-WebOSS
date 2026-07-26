@@ -1,0 +1,188 @@
+name: Release
+
+# 打 v* 标签即发布；workflow_dispatch 用于对已有标签补跑一次。
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发布的已有标签（例如 v1.2.0）'
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  # 与 ci.yml 的 db-matrix 同构：发布件也要在 PG/MySQL 上过一遍 repository 套件，
+  # 不能只靠默认的 SQLite——三方言的坑（upsert、列宽）恰恰是 SQLite 报不出来的。
+  db-matrix:
+    name: Repository suite (${{ matrix.dialect }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dialect: [postgres, mysql]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_USER: ci
+          POSTGRES_DB: subtier_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: ci
+          MYSQL_DATABASE: subtier_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -pci"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run repository tests against ${{ matrix.dialect }}
+        env:
+          TEST_DIALECT: ${{ matrix.dialect }}
+          TEST_PG_URL: postgres://ci:ci@127.0.0.1:5432/subtier_test
+          TEST_MYSQL_URL: mysql://root:ci@127.0.0.1:3306/subtier_test
+        run: npm run test:repo
+
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    needs: db-matrix
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # dispatch 时 github.ref 是分支，必须显式取输入的标签
+          ref: ${{ inputs.tag || github.ref }}
+          # 生成变更日志要对比上一个标签，浅克隆看不到
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # 发布件必须自带门禁：ci.yml 只在 push 到分支时跑，标签推送不会触发它。
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+      - name: Assert no inline style/event attributes
+        run: npm run check:inline
+      - name: Assert design token contrast
+        run: npm run check:contrast
+      - name: Assert asset size budget
+        run: npm run check:budget
+
+      - name: Resolve version
+        id: meta
+        env:
+          RAW_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${RAW_TAG#v}"
+          {
+            echo "tag=$RAW_TAG"
+            echo "version=$version"
+            echo "name=cntiers-web-oss-$version"
+            # 预发布：标签里带连字符（v1.2.0-rc.1）
+            if [[ "$RAW_TAG" == *-* ]]; then echo "prerelease=true"; else echo "prerelease=false"; fi
+          } >> "$GITHUB_OUTPUT"
+          # 版本不一致只警告不拦截：发布件仍可用，但包内 package.json 会写着旧号
+          # 用 jq 而非 node -p require(...)：根 package.json 是 ESM，require 在 -p 里不保险
+          pkg="$(jq -r .version package.json)"
+          if [[ "$pkg" != "$version" ]]; then
+            echo "::warning title=版本号不一致::package.json = $pkg，标签 = $RAW_TAG"
+          fi
+
+      # 部署件 = 构建产物 + 运行清单 + 部署配置。不含 node_modules：
+      # better-sqlite3 是原生模块，得在目标机上 npm ci --omit=dev 自行编译。
+      - name: Pack release tarball
+        env:
+          NAME: ${{ steps.meta.outputs.name }}
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          stage="$work/$NAME"
+          mkdir -p "$stage/data"
+          cp -r dist "$stage/dist"
+          cp package.json package-lock.json ecosystem.config.cjs .env.example \
+             README.md LICENSE "$stage/"
+          touch "$stage/data/.gitkeep"
+
+          # 压缩包里只有 dist/，没有 src/。这两个入口一旦指回旧站，发出去的包
+          # 就是起不来的（"Script not found"），而且只有部署的人才会发现。
+          [[ "$(jq -r .scripts.start "$stage/package.json")" == 'node dist/server/server.js' ]] \
+            || { echo "::error::package.json 的 start 不指向 dist/，压缩包会起不来"; exit 1; }
+          grep -q "script: 'dist/server/server.js'" "$stage/ecosystem.config.cjs" \
+            || { echo "::error::ecosystem.config.cjs 的 script 不指向 dist/，压缩包会起不来"; exit 1; }
+          mkdir -p artifacts
+          tar -czf "artifacts/$NAME.tar.gz" -C "$work" "$NAME"
+          (cd artifacts && sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          NAME: ${{ steps.meta.outputs.name }}
+          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+
+          notes="$(mktemp)"
+          cat > "$notes" <<EOF
+          ## 部署
+
+          \`\`\`bash
+          tar -xzf $NAME.tar.gz && cd $NAME
+          npm ci --omit=dev          # better-sqlite3 在此编译，需要 Node >= 22
+          cp .env.example .env       # 生产必须填 SESSION_SECRET（>=32 字符）与 APP_BASE_URL
+          pm2 start ecosystem.config.cjs
+          \`\`\`
+
+          压缩包内是构建好的 \`dist/\`，不含 \`node_modules/\`。
+          校验：\`sha256sum -c $NAME.tar.gz.sha256\`
+
+          ---
+
+          EOF
+
+          # 变更日志单独取：--generate-notes 与 --notes-file 同时给时，
+          # 谁覆盖谁在不同 gh 版本上不一致，所以自己取回来拼。
+          gh api "repos/$REPO/releases/generate-notes" \
+            -f tag_name="$TAG" --jq .body >> "$notes" \
+            || echo "（自动变更日志生成失败，见上方日志与提交历史）" >> "$notes"
+
+          # 已存在同名 release 时改为覆盖上传，便于补跑
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              "artifacts/$NAME.tar.gz" "artifacts/$NAME.tar.gz.sha256" --clobber
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes-file "$notes" \
+              --prerelease="$PRERELEASE" \
+              "artifacts/$NAME.tar.gz" "artifacts/$NAME.tar.gz.sha256"
+          fi
