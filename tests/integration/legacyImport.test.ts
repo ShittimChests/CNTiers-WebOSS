@@ -8,6 +8,7 @@ import { SettingsRepository } from '../../app/repositories/settingsRepository.js
 import { UserRepository } from '../../app/repositories/userRepository.js';
 import {
   findConflicts,
+  findOversized,
   importLegacyData,
   normalizeRole,
   type ImportReport,
@@ -87,6 +88,59 @@ describe('findConflicts', () => {
 
   it('无冲突时返回空数组', () => {
     expect(findConflicts(fixture.users)).toEqual([]);
+  });
+});
+
+/*
+ * 长度检查必须在导入之前跑。
+ *
+ * migrate-json 的目标固定是 SQLite，而 SQLite 不强制 varchar(n)：不拦的话
+ * 报告一片绿、导入成功，直到日后用面板 migrate 到 PostgreSQL / MySQL 时才在
+ * 复制事务里炸，那时错误来自驱动层，指不出是哪一行、更指不出是旧数据的问题。
+ * 超长值在旧数据里是真实存在的——旧站的 Excel 导入直接拿表头当项目名。
+ */
+describe('findOversized', () => {
+  it('检出超出列宽的用户名与邮箱', () => {
+    const found = findOversized({
+      users: [{ id: 'a', username: 'x'.repeat(33), email: `${'y'.repeat(250)}@example.com` }],
+      entries: [],
+      settings: {}
+    });
+
+    expect(found.map((item) => item.field).sort()).toEqual(['email', 'username']);
+    expect(found[0]).toMatchObject({ limit: 32, actual: 33 });
+  });
+
+  it('检出超长的项目名与定级（旧站 Excel 导入的产物）', () => {
+    const found = findOversized({
+      users: [],
+      entries: [
+        {
+          id: 'e1',
+          player: 'Notch',
+          categories: { ['Crystal '.repeat(10)]: 'HT1', Sword: 'X'.repeat(33) }
+        }
+      ],
+      settings: {}
+    });
+
+    expect(found).toHaveLength(2);
+    expect(found.some((item) => item.field.includes('细分项目名'))).toBe(true);
+    expect(found.some((item) => item.field.includes('的定级'))).toBe(true);
+  });
+
+  it('恰好等于上限的值不算超长', () => {
+    expect(
+      findOversized({
+        users: [{ id: 'a', username: 'x'.repeat(32) }],
+        entries: [{ id: 'e', player: 'p'.repeat(32), rank: 'r'.repeat(64) }],
+        settings: {}
+      })
+    ).toEqual([]);
+  });
+
+  it('真实 fixture 不含超长字段', () => {
+    expect(findOversized(fixture)).toEqual([]);
   });
 });
 
@@ -282,6 +336,38 @@ describe('importLegacyData', () => {
     expect(merged?.id).toBe(seeded.id);
     expect(merged?.passwordHash).not.toBe('seeded-hash');
     expect(await users.findById('admin-1')).toBeNull();
+  });
+
+  /*
+   * 用户名命中 A、邮箱命中 B 时必须停下来。
+   *
+   * 取第一条去 update 的话，另一列的唯一约束随后必然冲突、整批回滚，而现场
+   * 只留下一条驱动层的约束报错，看不出是哪两个账号在打架。findConflicts 只查
+   * 旧数据**内部**的重复，挡不住「旧数据 vs 目标库已有行」这种交叉命中。
+   */
+  it('同时命中目标库里两个不同账号时，报出三方而不是静默挑一个', async () => {
+    await users.create({
+      username: 'ClashName',
+      email: 'name-owner@example.com',
+      passwordHash: 'h',
+      role: 'User',
+      emailVerified: true
+    });
+    await users.create({
+      username: 'OtherName',
+      email: 'mail-owner@example.com',
+      passwordHash: 'h',
+      role: 'User',
+      emailVerified: true
+    });
+
+    await expect(
+      runImport({
+        users: [{ id: 'legacy-1', username: 'clashname', email: 'MAIL-OWNER@example.com' }],
+        entries: [],
+        settings: {}
+      })
+    ).rejects.toThrow(/同时对应目标库里的多个既有账号/);
   });
 
   it('id 相同的记录按 id 更新，不计入合并数', async () => {

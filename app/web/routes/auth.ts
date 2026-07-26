@@ -170,7 +170,13 @@ authRouter.post('/login', loginLimiter, (req, res, next) => {
 
 /** 登出。GET 不允许——退出是状态变更。 */
 function logout(req: Request, res: Response): void {
-  req.session.destroy(() => {
+  req.session.destroy((error: unknown) => {
+    /*
+     * 销毁失败必须记日志：此时会话行还在库里、cookie 也还有效，用户看到的却是
+     * 「已登出」。吞掉它就等于把一次失败的登出伪装成成功的。仍然重定向——
+     * 给用户一个错误页并不能让他更安全，而日志是唯一能发现存储层出问题的渠道。
+     */
+    if (error) console.error('[auth] 销毁会话失败（用户仍可能保持登录）：', error);
     res.redirect('/');
   });
 }

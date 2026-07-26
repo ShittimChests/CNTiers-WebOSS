@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { API_LIMITS, FIELD_LIMITS } from '../config/constants.js';
+import { AppError } from '../errors/AppError.js';
 
 /**
  * 输入校验 schema。
@@ -137,7 +138,9 @@ export const categoryNameSchema = z.object({
  *
  * 上限仍然要有（防止无界输入），但取一个只与「能不能进数据库」有关的宽值。
  */
-const categoryLookupName = trimmed.min(1).max(255);
+const CATEGORY_LOOKUP_MAX = 255;
+
+const categoryLookupName = trimmed.min(1).max(CATEGORY_LOOKUP_MAX);
 
 export const categoryLookupSchema = z.object({ name: categoryLookupName });
 
@@ -165,7 +168,16 @@ export const settingsSchema = z.object({
 
 /**
  * 从 `category__<名字>` 形式的字段里收集定级。
- * 这是表单向数据结构的反序列化，不是校验，因此单独成函数。
+ *
+ * 既是反序列化也是校验：字段名是动态的，zod 的对象 schema 表达不了「任意
+ * `category__*` 键」，所以长度约束只能在这里落地。
+ *
+ * **tier 的长度必须在服务端卡住。** 列是 `varchar(32)`，而三种方言对超长值的
+ * 反应完全不同：SQLite 根本不强制，照单全收；PostgreSQL 直接报错；MySQL 严格
+ * 模式下报错、非严格模式下静默截断。视图上的 `maxlength={32}` 只是个客户端属性，
+ * curl 一下就没了。放任的后果不止是一次 500——超长值会先安静地躺在 SQLite 里，
+ * 等到日后走面板 migrate 到 PostgreSQL 时才在 `#copyAll` 里炸，那时既看不出是
+ * 哪一行也看不出是哪一列。项目名同理（它只用于查找，但没有上界就是无界输入）。
  */
 export function parseTierPayload(body: Record<string, unknown>): Record<string, string> {
   const out: Record<string, string> = {};
@@ -173,9 +185,25 @@ export function parseTierPayload(body: Record<string, unknown>): Record<string, 
     if (!key.startsWith('category__')) continue;
     const name = key.slice('category__'.length);
     if (name.length === 0 || typeof raw !== 'string') continue;
+    if (name.length > CATEGORY_LOOKUP_MAX) {
+      throw new AppError('invalid_input', {
+        meta: { field: key, reason: 'category_name_too_long' }
+      });
+    }
     const value = raw.trim();
     // 空值表示未定级——不建行，而不是存空字符串
-    if (value.length > 0) out[name] = value;
+    if (value.length === 0) continue;
+    if (value.length > FIELD_LIMITS.tier.max) {
+      throw new AppError('invalid_input', {
+        meta: {
+          field: key,
+          reason: 'tier_too_long',
+          limit: FIELD_LIMITS.tier.max,
+          actual: value.length
+        }
+      });
+    }
+    out[name] = value;
   }
   return out;
 }

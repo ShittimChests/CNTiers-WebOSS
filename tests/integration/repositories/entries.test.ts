@@ -43,6 +43,21 @@ describe('EntryRepository', () => {
     expect(found?.rank).toBe('Master');
   });
 
+  /*
+   * create() 必须回读，不能把入参原样返回。#writeTiers 会静默跳过查不到对应
+   * 项目的名字（项目可能刚被删掉），返回入参就等于宣称写进去了一份并不存在的
+   * 定级——而 update() 一直是回读的，两者语义必须一致。
+   */
+  it('创建的返回值只含真正落库的定级', async () => {
+    const created = await entries.create({
+      ...baseEntry,
+      tiers: { Sword: 'HT1', NotACategory: 'HT9' }
+    });
+
+    expect(created.tiers).toEqual({ Sword: 'HT1' });
+    expect(created.tiers).toEqual((await entries.findById(created.id))?.tiers);
+  });
+
   it('未定级的项目不出现在 tiers 里（不是 null 而是缺失）', async () => {
     const created = await entries.create({ ...baseEntry, tiers: { Sword: 'HT1' } });
     const found = await entries.findById(created.id);

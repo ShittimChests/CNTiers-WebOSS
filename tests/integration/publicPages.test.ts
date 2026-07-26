@@ -5,6 +5,7 @@ import type { Express } from 'express';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../app/app.js';
+import { config } from '../../app/config/env.js';
 import { createKysely } from '../../app/db/dialects.js';
 import { dbManager } from '../../app/db/manager.js';
 import { runMigrations } from '../../app/db/migrator.js';
@@ -154,10 +155,17 @@ describe('榜单首页', () => {
 });
 
 describe('API 文档页', () => {
-  it('渲染并用请求自身的 host 拼示例', async () => {
-    const response = await request(app).get('/api/docs').set('Host', 'example.test');
+  /*
+   * 示例 URL 取 config.appBaseUrl，不跟随 Host。
+   *
+   * Host 是客户端可控的，让它决定页面上印出来的域名等于给了任何人一个
+   * 「让本站展示他指定地址」的原语——curl 示例正是最容易被照抄执行的那种内容。
+   */
+  it('渲染示例时用配置的 baseUrl，不跟随 Host 头', async () => {
+    const response = await request(app).get('/api/docs').set('Host', 'evil.test');
     expect(response.status).toBe(200);
-    expect(response.text).toContain('http://example.test/api/v1/gamemodes');
+    expect(response.text).toContain(`${config.appBaseUrl}/api/v1/gamemodes`);
+    expect(response.text).not.toContain('evil.test');
   });
 
   it('文档里的限流与缓存数值取自同一份常量', async () => {

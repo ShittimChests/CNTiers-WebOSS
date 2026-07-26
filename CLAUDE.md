@@ -100,6 +100,15 @@ app/
 所有条目 `categories` 键的并集，于是增删改都要遍历全表；现在改名是改一行，
 删除靠外键级联，条目上的定级自动跟随。
 
+**列宽只有 PostgreSQL / MySQL 会强制，所以长度必须在服务端卡住。** SQLite 根本不看
+`varchar(n)`，MySQL 视 `sql_mode` 报错或静默截断，只有 PostgreSQL 一定报错。于是超长值的
+典型命运是：先安静地进 SQLite，等到日后走面板 `migrate` 时才在复制事务里炸，而那时错误
+来自驱动层，既指不出行也指不出列。凡是写进这几列的路径都必须自带长度校验——
+表单侧是 `utils/validation.ts`（`entrySchema` 各字段 + `parseTierPayload` 的
+`FIELD_LIMITS.tier`，视图上的 `maxlength` 只是客户端属性，不算数），
+旧数据侧是 `scripts/lib/legacyImport.ts` 的 `findOversized()`，它在导入**之前**跑并让
+`db:import` 直接失败。`COLUMN_LIMITS` 与 `db/migrations/001_init.ts` 必须手动保持同步。
+
 **验证码以 HMAC 落库**（密钥由 `SESSION_SECRET` 经 HKDF 派生）。6 位数字空间只有 10⁶，
 明文存储意味着数据库一旦只读泄露就能直接冒用。`services/verificationService.ts`
 是验证码的唯一实现，`verify_email` 与 `reset_password` 共用同一套状态机。
@@ -183,6 +192,13 @@ AppError 的 code 与 status。理由是对外承诺的错误码只有 5 个（�
 `ADMIN_PASSWORD` 重新变成一条可用凭据。它排在切指针**之后**且只记日志不抛：此刻切换
 已经成功，为一次 seed 失败把它报成失败会破坏上面那条不变量。
 
+**切库的失败路径必须自己记日志。** `/admin/database/switch` 把 `AppError` 就地转成 flash
+再重定向，所以那条错误根本走不到 `errorHandler` 的 `status >= 500` 分支——不在
+`dbSwitchService` 里记，操作者能拿到的全部信息就是码表里那句「数据搬迁失败，已保持使用
+原数据库」，而真正有用的是被包在 `cause` 里的驱动层报错（列宽溢出、权限不足、证书校验
+失败……）。`failWithLog()` 负责这件事，日志前缀是 `[db-switch]`。这是切库这条路上唯一的
+取证渠道，别把它简化掉。
+
 TLS 默认**校验证书**。自签证书、私有 CA 或按 IP 连接（证书几乎不带 IP SAN）时才需要在
 面板上勾「跳过证书校验」（配置字段 `sslInsecure`）——只加密不认证挡不住中间人，所以它
 必须是显式选择，且会在 `describeConnection()` 的摘要里标出来，免得勾上之后再没人记得。
@@ -244,6 +260,9 @@ SDK 的收益不抵依赖成本。这个取舍从旧站延续，请勿引入 `re
 2. 停旧站，**备份 `data/*.json`**。
 3. `npm run db:import -- --dry-run` 看报告，确认用户/条目/定级数量与排名前 10 名一致。
    有「只差大小写的重复账号」时会中止并列出，需人工处理后重跑。
+   **超出列宽的字段同样会中止**并逐条列出（哪条记录、哪个字段、多少字符）——这条检查
+   是给 PostgreSQL / MySQL 用的：本脚本的目标固定是 SQLite，而 SQLite 不强制 `varchar(n)`，
+   放行的话报告一片绿，直到日后用面板迁移到服务型数据库时才炸。
    **同时核对报告最后一行的 SuperAdmin 清单**：旧站把 `role === 'admin'` 也算 SuperAdmin，
    导入会忠实沿用这条规则，于是旧数据里有几个这样的账号就会有几个 SuperAdmin。而新站
    不允许对 SuperAdmin 降级或删除，多出来的那些在后台里动不了——若不是预期结果，

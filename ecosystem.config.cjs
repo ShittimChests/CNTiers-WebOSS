@@ -19,6 +19,11 @@ module.exports = {
        * CSP 的 upgrade-insecure-requests 全挂在它上面，而 PM2 默认不设它——
        * 漏掉的话这些保护一条都不会生效，并且**不会有任何报错**。
        * 启动日志会打出「（NODE_ENV=…）」，用它确认。
+       *
+       * 注意它**在切换之前就已生效**：script 还指向旧站时，下一次 pm2 restart
+       * 就会让旧站也跑在 production 下。对旧站的影响是 Express 自身的那两条
+       * （开启视图缓存、默认错误处理器不再吐堆栈），都是正向的；旧站的会话
+       * cookie secure 取自 APP_BASE_URL 而非 NODE_ENV，不受影响。
        */
       env: { NODE_ENV: 'production' },
       /*

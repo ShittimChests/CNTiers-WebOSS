@@ -87,7 +87,14 @@ export class EntryRepository extends BaseRepository {
       await this.#writeTiers(trx, id, input.tiers);
     });
 
-    return toEntry(row, input.tiers);
+    /*
+     * 回读而不是把 input.tiers 原样返回，与 update() 保持一致。
+     * #writeTiers 会静默跳过查不到对应项目的名字（项目可能刚被删掉），
+     * 直接返回入参就等于宣称写进去了一份实际不存在的定级。
+     */
+    const created = await this.findById(id);
+    if (!created) throw new Error(`创建后找不到条目 ${id}`);
+    return created;
   }
 
   /** 全量更新：基础字段与细分项目一并替换。 */

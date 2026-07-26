@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { config } from '../../config/env.js';
 import { categoryService } from '../../services/categoryService.js';
 import { leaderboardService } from '../../services/leaderboardService.js';
 import { boardQuerySchema } from '../../utils/validation.js';
@@ -48,10 +49,12 @@ publicRouter.get('/', (req, res, next) => {
 /**
  * 公开 API 的文档页。
  *
- * baseUrl 用请求自身的 host 拼装，这样示例里的 curl 可以直接复制运行
- * （无论站点跑在本机、隧道域名还是别的端口上）。
+ * baseUrl 取 config.appBaseUrl（生产环境必填，开发环境退回 http://localhost:PORT），
+ * 而不是 `req.get('host')`。示例里的 curl 照样能直接复制运行，但页面内容不再
+ * 随请求头变化——Host 是客户端可控的，让它决定文档里印出来的域名，等于给了
+ * 任何人一个「让本站页面展示他指定地址」的原语。这也与 OAuth 的 redirect_uri
+ * 用同一个事实来源，两处不会漂移。
  */
-publicRouter.get('/api/docs', (req, res) => {
-  const baseUrl = `${req.protocol}://${req.get('host') ?? 'localhost'}`;
-  renderPage(res, ApiDocsPage({ ctx: viewContext(res), baseUrl }));
+publicRouter.get('/api/docs', (_req, res) => {
+  renderPage(res, ApiDocsPage({ ctx: viewContext(res), baseUrl: config.appBaseUrl }));
 });

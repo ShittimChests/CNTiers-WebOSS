@@ -43,6 +43,26 @@ type CopyTable = (typeof COPY_ORDER)[number];
  */
 const BATCH_SIZE = 100;
 
+/**
+ * 抛业务错误的同时把根因记进日志。
+ *
+ * 切库的失败路径**必须**自己记日志，不能指望 errorHandler：
+ * `/admin/database/switch` 把 AppError 就地转成 flash 再重定向，那条错误
+ * 根本走不到 errorHandler 的 `status >= 500` 分支。于是操作者能看到的全部
+ * 信息就是码表里那句「数据搬迁失败，已保持使用原数据库」——而真正有用的
+ * 是被包在 cause 里的驱动层报错（列宽溢出、权限不足、证书校验失败……）。
+ * 把它吞掉正是 errorHandler 注释点名批判的那种静默降级，何况切库恰恰是
+ * 最需要事后取证的操作。
+ */
+function failWithLog(
+  code: 'db_connect_failed' | 'db_migration_failed' | 'db_copy_failed',
+  what: string,
+  cause: unknown
+): AppError {
+  console.error(`[db-switch] ${what}：`, cause);
+  return new AppError(code, { cause });
+}
+
 export interface ConnectionProbe {
   driver: DbConnectionConfig['driver'];
   summary: string;
@@ -107,7 +127,7 @@ export class DbSwitchService {
       try {
         await runMigrations(next);
       } catch (cause) {
-        throw new AppError('db_migration_failed', { cause });
+        throw failWithLog('db_migration_failed', '目标库迁移失败', cause);
       }
 
       const probe = await this.#probeWith(next, target);
@@ -127,8 +147,10 @@ export class DbSwitchService {
           await this.#copyAll(this.manager.db(), next, copied);
           await this.#verify(this.manager.db(), next);
         } catch (cause) {
+          // 逐表核对抛出的 db_copy_failed 已经带着 meta（哪张表、差多少行），
+          // 它自己在 #verify 里记过日志；这里只补驱动层原始错误那一路
           if (AppError.is(cause)) throw cause;
-          throw new AppError('db_copy_failed', { cause });
+          throw failWithLog('db_copy_failed', '复制数据到目标库失败', cause);
         }
       }
 
@@ -185,7 +207,11 @@ export class DbSwitchService {
     } catch (cause) {
       // 路径不合法等参数问题原样抛出
       if (AppError.is(cause)) throw cause;
-      throw new AppError('db_connect_failed', { cause });
+      throw failWithLog(
+        'db_connect_failed',
+        `无法建立到 ${describeConnection(target)} 的连接`,
+        cause
+      );
     }
 
     try {
@@ -197,7 +223,11 @@ export class DbSwitchService {
         await db.introspection.getTables();
       } catch (cause) {
         await db.destroy().catch(() => undefined);
-        throw new AppError('db_connect_failed', { cause });
+        throw failWithLog(
+          'db_connect_failed',
+          `连接 ${describeConnection(target)} 时握手失败`,
+          cause
+        );
       }
     }
     return db;
@@ -261,6 +291,9 @@ export class DbSwitchService {
       const before = await this.#countOrNull(source, table);
       const after = await this.#countOrNull(target, table);
       if (before !== after) {
+        console.error(
+          `[db-switch] 核对失败：表 ${table} 源库 ${String(before)} 行、目标库 ${String(after)} 行`
+        );
         throw new AppError('db_copy_failed', {
           meta: { table, expected: before, actual: after }
         });
@@ -283,6 +316,7 @@ export class DbSwitchService {
         .executeTakeFirst();
       const matches = actual?.player === expected.player && actual?.points === expected.points;
       if (!matches) {
+        console.error(`[db-switch] 抽样核对失败：条目 ${expected.id} 在目标库里对不上`);
         throw new AppError('db_copy_failed', { meta: { entryId: expected.id } });
       }
     }

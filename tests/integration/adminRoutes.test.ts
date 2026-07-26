@@ -178,6 +178,50 @@ describe('条目管理', () => {
     expect((await agent.get('/admin')).text).toContain('条目已添加');
   });
 
+  /*
+   * tier 的长度必须在服务端卡住。列是 varchar(32)，而 SQLite 不强制、PostgreSQL
+   * 报错、MySQL 视 sql_mode 报错或静默截断——放行的话超长值会先安静地进 SQLite，
+   * 等到日后 migrate 到 PostgreSQL 时才在复制事务里炸。视图上的 maxlength 是
+   * 客户端属性，这个请求正是绕过它的那种。
+   */
+  it('超长的 tier 被拒绝，条目不落库', async () => {
+    const agent = await loginAs('Manager');
+    const token = await tokenFrom(agent, '/admin');
+
+    const response = await agent
+      .post('/admin/entries')
+      .type('form')
+      .send({
+        _csrf: token,
+        player: 'Overflow',
+        rank: 'SubtierAce',
+        points: '10',
+        category__Sword: 'X'.repeat(33)
+      });
+
+    expect(response.status).toBe(302);
+    expect(await entryRepository.findByPlayer('Overflow')).toBeNull();
+    expect((await agent.get('/admin')).text).toContain('提交内容不合法');
+  });
+
+  it('刚好 32 字符的 tier 仍然接受（边界不能收紧）', async () => {
+    const agent = await loginAs('Manager');
+    const token = await tokenFrom(agent, '/admin');
+
+    await agent
+      .post('/admin/entries')
+      .type('form')
+      .send({
+        _csrf: token,
+        player: 'Edge',
+        rank: 'SubtierAce',
+        points: '10',
+        category__Sword: 'X'.repeat(32)
+      });
+
+    expect((await entryRepository.findByPlayer('Edge'))?.tiers['Sword']).toHaveLength(32);
+  });
+
   it('快速编辑只改指定字段，定级保留', async () => {
     const created = await entryRepository.create({
       player: 'Keeper',

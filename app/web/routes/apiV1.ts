@@ -3,7 +3,7 @@ import { API_CACHE_SECONDS, API_LIMITS } from '../../config/constants.js';
 import { categoryRepository } from '../../repositories/categoryRepository.js';
 import { leaderboardService } from '../../services/leaderboardService.js';
 import type { RankedEntry } from '../../types/domain.js';
-import { parseTier } from '../../utils/tier.js';
+import { compareWithinTier, parseTier } from '../../utils/tier.js';
 import {
   apiGamemodeNameSchema,
   apiListPaginationSchema,
@@ -154,11 +154,9 @@ apiV1Router.get('/rankings/:gamemode', (req, res, next) => {
 
       const tiers: Record<string, BucketRow[]> = {};
       for (const [major, rows] of buckets) {
-        rows.sort((a, b) => {
-          if (a.half !== b.half) return a.half === 'HT' ? -1 : 1;
-          if (b.points !== a.points) return b.points - a.points;
-          return a.name.localeCompare(b.name);
-        });
+        // 分桶内排序是契约的一部分（golden 基线锁着它），因此只能有一份实现：
+        // 内联抄一遍就意味着日后有人会去改错的那一份而测试全绿
+        rows.sort(compareWithinTier);
         // offset 与 count 都是"每个分桶"的，不是全局的
         tiers[major] = rows.slice(offset, offset + count).map(({ half: _half, ...rest }) => rest);
       }

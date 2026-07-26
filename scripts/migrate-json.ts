@@ -22,6 +22,7 @@ import { DbManager } from '../app/db/manager.js';
 import { runMigrations } from '../app/db/migrator.js';
 import {
   findConflicts,
+  findOversized,
   formatRanking,
   importLegacyData,
   type ImportReport,
@@ -77,6 +78,29 @@ async function main(): Promise<void> {
     for (const conflict of conflicts) {
       console.error(`  ${conflict.kind} "${conflict.value}" → id: ${conflict.ids.join(', ')}`);
     }
+    process.exitCode = 1;
+    return;
+  }
+
+  /*
+   * 长度检查必须在这里拦住，不能只是提示。
+   *
+   * 本脚本的目标固定是 SQLite，而 SQLite 不强制 varchar(n)：放行的话报告全绿、
+   * 导入成功，直到日后用 /admin/database 迁移到 PostgreSQL / MySQL 时才在复制
+   * 事务里炸掉。那时错误来自驱动层（`value too long for type character varying(48)`），
+   * 既指不出是哪一行也指不出是旧数据的问题。
+   */
+  const oversized = findOversized({ users, entries, settings });
+  if (oversized.length > 0) {
+    console.error(
+      '\n✖ 发现超出列宽的字段。SQLite 会照单全收，但切到 PostgreSQL / MySQL 时会失败：'
+    );
+    for (const item of oversized) {
+      console.error(
+        `  ${item.owner} 的 ${item.field}：${String(item.actual)} 字符 > 上限 ${String(item.limit)}  ${item.sample}`
+      );
+    }
+    console.error('  请先在旧数据里缩短这些值后重跑。');
     process.exitCode = 1;
     return;
   }

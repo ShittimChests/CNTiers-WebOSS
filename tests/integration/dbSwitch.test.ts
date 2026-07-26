@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import type { Express } from 'express';
 import request from 'supertest';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * 切库演练。
@@ -251,6 +251,47 @@ describe('迁移并切换', () => {
 
     expect(dbManager.currentConfig()).toEqual(SOURCE);
     expect(await entryRepository.count()).toBe(2);
+  });
+
+  /*
+   * 失败必须把根因写进日志。
+   *
+   * 路由把 AppError 就地转成 flash 再重定向，所以这条错误根本走不到
+   * errorHandler 的 `status >= 500` 分支——不在这里记，操作者能拿到的全部信息
+   * 就是码表里那句「无法连接到目标数据库」，而真正有用的是被包在 cause 里的
+   * 驱动层报错。断言 cause 确实出现在日志参数里，光断言「调用过 console.error」
+   * 的话，把 cause 丢掉的实现照样能通过。
+   */
+  it('连接失败时把驱动层原始错误记进日志', async () => {
+    const logged: unknown[][] = [];
+    const spy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      logged.push(args);
+    });
+
+    try {
+      await service.switchTo(
+        {
+          driver: 'postgres',
+          host: '127.0.0.1',
+          port: 1,
+          database: 'x',
+          user: 'x',
+          password: '',
+          ssl: false
+        },
+        'migrate'
+      );
+      throw new Error('预期拒绝');
+    } catch (error) {
+      expect(AppError.is(error)).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+
+    const dbSwitchLogs = logged.filter((args) => String(args[0]).startsWith('[db-switch]'));
+    expect(dbSwitchLogs.length).toBeGreaterThan(0);
+    // 第二个参数就是 cause 本身，不是被格式化掉的字符串
+    expect(dbSwitchLogs.some((args) => args[1] instanceof Error)).toBe(true);
   });
 });
 

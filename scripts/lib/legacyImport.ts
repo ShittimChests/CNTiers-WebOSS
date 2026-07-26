@@ -81,6 +81,34 @@ export interface Conflict {
   ids: string[];
 }
 
+export interface Oversized {
+  /** 归属记录的可读标识，例如 `用户 alice` / `条目 Notch`。 */
+  owner: string;
+  field: string;
+  limit: number;
+  actual: number;
+  /** 截断后的原值，只为让人认出是哪一条。 */
+  sample: string;
+}
+
+/**
+ * 各列的长度上限，取自 db/migrations/001_init.ts。
+ *
+ * 必须与迁移保持同步——这里放宽一个字符不会有任何报错，只会把失败推迟到
+ * 导入之后的某次切库。
+ */
+const COLUMN_LIMITS = {
+  userId: 64,
+  username: 32,
+  email: 254,
+  entryId: 64,
+  player: 32,
+  rank: 64,
+  testServer: 64,
+  categoryName: 48,
+  tier: 32
+} as const;
+
 const lower = (value: string): string => value.trim().toLowerCase();
 const nowIso = (): string => new Date().toISOString();
 
@@ -116,6 +144,49 @@ export function findConflicts(users: LegacyUser[]): Conflict[] {
     }
   }
   return conflicts;
+}
+
+/**
+ * 检出超出列宽的字段。
+ *
+ * 这一条必须在导入**之前**跑，而且必须让人看见。
+ *
+ * 旧站从不校验长度（Excel 导入直接拿 `String(header).trim()` 当项目名），
+ * SQLite 也不强制 varchar(n)，于是超长值在旧数据里是真实存在的。而 migrate-json
+ * 的目标固定是 SQLite——它会把这些值原样收下，报告一片绿，直到日后用面板
+ * migrate 到 PostgreSQL / MySQL 时才在复制事务里炸掉，那时既看不出是哪一行
+ * 也看不出是哪一列。把检查提到这里，代价是导入前多一次纯内存扫描。
+ */
+export function findOversized(data: LegacyData): Oversized[] {
+  const out: Oversized[] = [];
+
+  const check = (owner: string, field: string, value: unknown, limit: number): void => {
+    if (typeof value !== 'string') return;
+    const text = value.trim();
+    if (text.length <= limit) return;
+    out.push({ owner, field, limit, actual: text.length, sample: `${text.slice(0, 40)}…` });
+  };
+
+  for (const user of data.users) {
+    const owner = `用户 ${user.username ?? user.id ?? '(无标识)'}`;
+    check(owner, 'id', user.id, COLUMN_LIMITS.userId);
+    check(owner, 'username', user.username, COLUMN_LIMITS.username);
+    check(owner, 'email', user.email, COLUMN_LIMITS.email);
+  }
+
+  for (const entry of data.entries) {
+    const owner = `条目 ${entry.player ?? entry.id ?? '(无标识)'}`;
+    check(owner, 'id', entry.id, COLUMN_LIMITS.entryId);
+    check(owner, 'player', entry.player, COLUMN_LIMITS.player);
+    check(owner, 'rank', entry.rank, COLUMN_LIMITS.rank);
+    check(owner, 'testServer', entry.testServer, COLUMN_LIMITS.testServer);
+    for (const [name, tier] of Object.entries(entry.categories ?? {})) {
+      check(owner, `细分项目名 "${name.slice(0, 20)}"`, name, COLUMN_LIMITS.categoryName);
+      check(owner, `细分项目 "${name.slice(0, 20)}" 的定级`, tier, COLUMN_LIMITS.tier);
+    }
+  }
+
+  return out;
 }
 
 /**
@@ -180,9 +251,9 @@ export async function importLegacyData(
      * email 相同，只按 id upsert 会撞上 email_lower 的唯一约束。
      * 这里把它们视为同一个账号：保留目标库已有的 id，更新其余字段。
      */
-    const existing = await trx
+    const matches = await trx
       .selectFrom('users')
-      .select('id')
+      .select(['id', 'username', 'email'])
       .where((eb) =>
         eb.or([
           eb('id', '=', row.id),
@@ -190,7 +261,23 @@ export async function importLegacyData(
           eb('email_lower', '=', row.email_lower)
         ])
       )
-      .executeTakeFirst();
+      .execute();
+
+    /*
+     * 三个条件可能命中**不同**的行：来源账号的用户名撞上目标库的 A、邮箱撞上 B。
+     * 取第一条去 update 的话，另一列的唯一约束随后必然冲突，整批回滚，而现场
+     * 只留下一条驱动层的约束报错——看不出是哪两个账号在打架。这类数据只能由人
+     * 决定保留哪条，所以直接停下来并把三方都打印出来。
+     */
+    const distinct = [...new Map(matches.map((m) => [m.id, m])).values()];
+    if (distinct.length > 1) {
+      const detail = distinct.map((m) => `${m.id}（${m.username} / ${m.email}）`).join('、');
+      throw new Error(
+        `旧账号 ${username} <${email}> 同时对应目标库里的多个既有账号：${detail}。` +
+          '请先人工合并或改名后重跑导入。'
+      );
+    }
+    const existing = distinct[0];
 
     if (existing) {
       const { id: _id, ...fields } = row;
