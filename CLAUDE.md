@@ -2,168 +2,188 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> ## ⚠️ 仓库当前是双栈：新站已建成，等待切换
+>
+> |      | 目录                       | 模块格式                               | 状态                                           |
+> | ---- | -------------------------- | -------------------------------------- | ---------------------------------------------- |
+> | 新站 | `app/` `scripts/` `tests/` | ESM                                    | **已完成 M0–M7，全部门禁绿**。尚未接管线上流量 |
+> | 旧站 | `src/` `views/` `public/`  | CommonJS（靠 `src/package.json` 保护） | 线上跑的仍是它。除修 bug 外不要动              |
+>
+> 切换步骤见文末「上线切换清单」。**在用户明确决定切换之前，不要删除 `src/`/`views/`/`public/`，
+> 也不要改 `package.json` 的 `start` 或 `ecosystem.config.cjs` 的 `script`。**
+>
+> 新代码的硬性约定：
+>
+> - **Node ≥ 22**（`better-sqlite3` 13 的要求）。开发机是 nvm 装的 v26；非交互 shell 需先
+>   `export PATH="$HOME/.nvm/versions/node/v26.5.0/bin:$PATH"`，否则会落到系统 Node 18 并段错误。
+> - **TypeScript 锁在 5.x**：TS 7 移除了 `moduleResolution: node10`，且 typescript-eslint 的 peer 范围是 `<6.1`。
+> - **相对导入必须带 `.js` 扩展名**（Node ESM 要求；Vite 与 tsc 都能解析到 `.ts` 源文件）。
+> - 根 `package.json` 是 ESM，所以 PM2 配置必须叫 `ecosystem.config.cjs`。
+> - 重写计划：`/home/cyterx/.claude/plans/mutable-purring-rivest.md`
+
 ## Commands
 
 ```bash
-npm install            # install deps
-npm run dev            # nodemon, auto-reload on changes (src/server.js)
-npm start              # production mode
-npm test               # node --test (no test files currently exist; run one with `node --test path/to/file.test.js`)
+npm run dev            # tsx watch app/server.ts（新站）
+npm run dev:assets     # vite build --watch（改 CSS / 客户端 TS 时另开一个终端）
+npm run dev:legacy     # nodemon src/server.js（旧站）
+npm start              # 现役旧站；切换后改用 start:next
+npm run start:next     # node dist/server/server.js（新站生产形态）
+
+npm run build          # vite build（客户端资产）+ tsc（服务端 → dist/server）
+npm run typecheck      # 三份 tsconfig：服务端 / 客户端 / 脚本与测试
+npm run lint           # eslint + stylelint + prettier --check
+npm test               # vitest run
+npm run test:repo      # 只跑 repository 测试（CI 会在 PG/MySQL 上重跑同一套）
+
+npm run check:inline   # 视图层不得出现内联样式 / 事件处理器
+npm run check:contrast # 设计 token 对比度（WCAG 2.1 AA）
+npm run check:budget   # 前端产物体积预算（需先 build:assets）
+
+npm run db:import -- --dry-run   # 旧 JSON → 数据库，先出报告不落盘
+npm run db:smoke                 # 数据层手工冒烟
+npm run golden:record            # 重录 API v1 契约基线（只在故意改 API 时）
 ```
 
-No linter or formatter is configured. The app uses Node's built-in `fetch` (so Node 18+ is required) and has **no separate SDKs for Resend or Microsoft OAuth**. Don't add `resend`, `passport`, etc. unless asked — both integrations are intentionally hand-rolled with `fetch`.
+生产部署：`pm2 start ecosystem.config.cjs`（应用名 `subtier`，512M 内存重启阈值）。
 
-To exercise locally, copy `.env.example` → `.env`. The most load-bearing env vars beyond the obvious ones are `APP_BASE_URL` (used to assemble the Microsoft OAuth `redirect_uri` plus any absolute URLs in flows like `/account/link/microsoft`; mismatched value = OAuth callback rejected by Microsoft), `RESEND_API_KEY` (without it, registration crashes when `settings.registrationEnabled` is true), and `MS_OAUTH_CLIENT_SECRET` (must be in env, never on disk).
+质量门禁是**强制**的，CI 会跑全部上述检查。其中几条容易踩：
+`noUncheckedIndexedAccess` 与 `noPropertyAccessFromIndexSignature`（所以
+`dataset['x']`、`process.env['X']`、`req.params['id']` 必须用索引访问）；
+stylelint 的 `declaration-strict-value`（CSS 里禁止字面色值/字号，必须走 token）；
+ESLint 对视图层 `style=` / `on*=` / `dangerouslySetInnerHTML` 的硬禁止。
 
-## Architecture overview
+## 架构总览（新站）
 
-Single Express 5 app rendering EJS server-side, backed by three JSON files in `data/`. All routes live inline in `src/server.js`; route ordering is grouped by section (`Public`, `Auth`, `Admin: dashboard`, `Admin: entries`, `Admin: categories`, `Admin: settings`, `Admin: users`).
-
-### Bootstrap order matters (`src/server.js` → `bootstrap()`)
-
-1. `ensureDataDir()` — creates `data/`.
-2. `getSettings()` — reads or creates `data/settings.json`.
-3. `getUsers()` — reads `data/users.json`; **idempotently migrates legacy rows** (role `'admin'` → `'SuperAdmin'`, fills missing `email`/`emailVerified`/`passwordResetToken`/`passwordResetExpires`/`mailCooldown`/etc.) and writes back if changed. Also seeds the bootstrap admin from `ADMIN_USERNAME`/`ADMIN_PASSWORD` env vars when the file is empty.
-4. `importExcelIfNeeded()` — when the leaderboard is empty, it bootstrap-imports `1.9+Subtier Overall(1).xlsx` if the file exists.
-5. `ensureRequiredRenames()` — applies the one-time category renames (`Trident → Trident Box`, `Bed → Surface Mace`, `Manhunt → Shieldless UHC`) and flips `settings.migrations.categoryRenames_v1`. Skipped on subsequent boots.
-6. `app.listen(PORT)`.
-
-Sessions are persisted to `data/sessions.json` via `FileSessionStore` (`src/services/sessionFileStore.js`). The store auto-creates the file on first write and lazy-sweeps expired entries on `set`. Restart no longer logs everyone out — but if you delete `sessions.json` everyone is logged out on next read.
-
-If you add another migration, follow the same pattern: gate it on a flag in `settings.migrations`, mutate via the dataStore service, flip the flag through `saveSettings`.
-
-### Data layer (`src/services/dataStore.js`)
-
-Three caches (`cachedLeaderboard`, `cachedUsers`, `cachedSettings`) populated lazily. **Anything that mutates `data/*.json` outside this module must call `invalidateCache()` or restart**, otherwise stale reads.
-
-All writes go through a single-flight `writeQueue` with the `tempfile + rename` atomic pattern. Don't call `fs.writeFile` on `data/*.json` directly — use `saveLeaderboard` / `saveUsers` / `saveSettings` / `upsertUser` / `deleteUser`.
-
-`saveSettings(partial)` deep-merges using `mergeSettings`; pass only the fields you want to change. The merge is intentionally permissive about types, so callers must pre-validate (the routes do, via zod in `src/utils/validation.js`).
-
-Constants exported by dataStore (`SUPER_ADMIN_USERNAME`, `LEADERBOARD_FILE`, etc.) are the canonical references — don't reconstruct paths inline.
-
-### Three-tier RBAC
-
-Roles live on the user record: `SuperAdmin` | `Admin` | `User`.
-
-- **SuperAdmin** — exactly one. By convention it is the user whose `username === SUPER_ADMIN_USERNAME` (driven by `ADMIN_USERNAME` env). `getUsers()` enforces the invariant: if the env-named admin exists but isn't `SuperAdmin`, it's promoted; if no SuperAdmin exists at all, the env admin is created. SuperAdmin **cannot be demoted, deleted, or renamed at runtime**; the route handlers explicitly reject attempts (`cannot_modify_super`).
-- **Admin** — promoted from `User` by SuperAdmin. Demotable, deletable.
-- **User** — default for self-registration and OAuth-created accounts.
-
-Middleware in `src/middleware/auth.js`:
-- `requireAuth` — must be logged in (redirects unauthenticated to `/login`, not `/admin/login`).
-- `requireAdminOrAbove` — gates entry/category routes. Use this for anything that mutates leaderboard data.
-- `requireSuperAdmin` — gates settings + user-management routes.
-
-Don't sprinkle inline role checks; reuse the middleware. The 403 path renders `views/error.ejs`, not a redirect.
-
-### Auth flow
-
-`/admin/login` is a 302 to `/login`; the unified `/login` accepts username **or** email plus password. Successful login regenerates the session (anti-fixation) and stashes only `{ id, username, email, role }` (`publicUser`). Never put password hashes or tokens on the session object.
-
-Registration (`POST /register`) is gated by `settings.registrationEnabled`. If disabled, the GET returns 404 and the nav hides the Register link. When enabled, registration creates a `User` row with `emailVerified: false`, generates a **6-digit numeric code** stored in `verifyToken` with **5-minute** expiry (`VERIFY_TTL_MS`) and `verifyAttempts: 0`, and sends the verification email **before** persisting the row — if the Resend call fails, no user is written. The user is then redirected to `/verify?email=...` where they paste the code. The verify endpoint (`POST /verify`) takes `{ email, code }`, uses `timingSafeEqualString` for the comparison, increments `verifyAttempts` on each wrong code, and after `MAX_CODE_ATTEMPTS` (5) failures invalidates the code entirely — the user must then click "重新发送" to issue a fresh one. There is no GET token-link verification flow anymore; `findUserByVerifyToken` / `findUserByPasswordResetToken` in `dataStore` are unused leftover exports.
-
-`POST /resend-verification` re-issues a fresh 6-digit code (subject to the per-user mail cooldown — see below) and resets `verifyAttempts`. `POST /forgot` issues a password-reset code; the reset page (`GET /reset?email=...`) collects `{ email, code, password, passwordConfirm }` and `POST /reset` consumes them. Reset codes also expire in 5 minutes (`RESET_TTL_MS`) and share the same `MAX_CODE_ATTEMPTS` brute-force lockout via `resetAttempts`. `/forgot` silently no-ops when the email maps to a SuperAdmin or to an OAuth-only account (no `passwordHash`), but **always** 302s to `/reset?email=...` so account existence isn't leaked through the response. To reset a SuperAdmin password, change `ADMIN_PASSWORD` env and wipe `data/users.json` to re-seed.
-Registration (`POST /register`) is gated by `settings.registrationEnabled`. If disabled, the GET returns 404 and the nav hides the Register link. When enabled, registration creates a `User` row with `emailVerified: false`, generates a **6-digit numeric** `verifyToken` via `generateCode()` with **5-minute** expiry (`VERIFY_TTL_MS`), and sends the verification email **before** persisting the row — if the Resend call fails, no user is written. The user is then redirected to `/verify?email=...` to enter the code; `POST /verify` compares with `timingSafeEqualString` and tracks `user.verifyAttempts` against `MAX_CODE_ATTEMPTS` (5). On the 5th wrong code the current code is invalidated and the counter clears, forcing the user through `POST /resend-verification` for a fresh code. The render template is `views/verify.ejs` (there is no `verify-result.ejs`).
-
-`POST /resend-verification` re-issues a fresh code + email; `POST /forgot` issues a password-reset code email and **always** redirects to `/reset?email=...` regardless of whether the email exists (anti-enumeration). `POST /reset` consumes `{ email, code, password, passwordConfirm }`, with the same 6-digit / 5-minute / `MAX_CODE_ATTEMPTS` semantics, and on success also flips `emailVerified: true`. Reset codes expire in 5 minutes (`RESET_TTL_MS`). Forgot is a no-op for SuperAdmin (cannot be reset via email — change `ADMIN_PASSWORD` env then reseed via empty `data/users.json` if you really need it).
-
-Login refuses unverified users unless their role is `SuperAdmin` (so the bootstrap admin can always log in even if `emailVerified` somehow isn't set).
-
-### Mail rate limiting
-
-Three layers, all in play:
-
-- **Login limiter** (`loginLimiter`): 10 `POST /login` attempts per 15-minute window per IP. Independent of the mail limiters; protects the password-check path.
-- **IP rate limit** (`mailIpLimiter`): 4 mail-sending POSTs per 60s per IP (covers `/register`, `/forgot`, `/resend-verification`). `validate: { trustProxy: false }` is set so `app.set('trust proxy', true)` (kept for Cloudflare Tunnel) doesn't trip the validator. If you ever expose the app directly to the internet, narrow `trust proxy` to a specific hop count or CIDR.
-- **Per-user, per-operation cooldown** (`src/services/mailCooldown.js`): 30s between sends of the same operation on the same user. Tracked in `user.mailCooldown[op]` (ISO timestamp). Helpers: `isCooledDown(user, op)` (true means the cooldown has elapsed and a new send is allowed), `remainingCooldownSeconds(user, op)`, `stampMailSent(user, op)`. Always check before send and stamp after a successful send.
-
-The naming of `isCooledDown` is counter-intuitive — read it as "has cooled down enough" / "is ready to send again", not "is currently in cooldown". Routes use `if (!isCooledDown(...)) return 429`.
-
-### Microsoft OAuth (login + linking)
-
-Two flows share `oauthService.js` but use **separate callback URLs** to avoid mode-confusion in `req.session.oauthState`:
-
-- **Login flow**: `GET /auth/microsoft` → Microsoft → `GET /auth/microsoft/callback`. Matches user by `oauthSubject`, falls back to email; creates a new `User` row with `passwordHash: null` if neither matches.
-- **Link flow**: `GET /account/link/microsoft` (auth required) → Microsoft → `GET /account/link/microsoft/callback`. Refuses if the Microsoft `subject` is already bound to another local account (`error=subject_taken`). Sets `oauthProvider: 'microsoft'`, `oauthSubject`, and forces `emailVerified: true` on the current user.
-- **Unlink**: `POST /account/unlink/microsoft`. Refuses with `error=needs_password` when the user has no `passwordHash` (would lock them out). Clears provider/subject only.
-
-`buildAuthUrl({ baseUrl, mode })` picks the right `redirect_uri` based on `mode` (`'login'` or `'link'`). The session stash records the mode and the callback validates it — a state with the wrong mode is rejected as if it were missing.
-
-Both flows are gated by `isMicrosoftEnabled()` (settings toggle + client_id present anywhere + `MS_OAUTH_CLIENT_SECRET` in env). When unavailable, login flow routes 404, link flow redirects back to `/account?error=oauth_disabled`, and the buttons on `/login` and `/account` are hidden.
-
-### Entry data
+Express 5 + **JSX-SSR（Preact `renderToString`，无 hydration）**，Kysely 数据层可在
+SQLite / PostgreSQL / MySQL 之间运行时切换。分层：
 
 ```
-{ id, position, player, rank, points, testServer, categories: { [name]: string|null }, createdAt, updatedAt }
+app/
+├─ server.ts app.ts        # 入口与装配
+├─ config/                 # env（唯一读 process.env 的地方）+ constants
+├─ db/                     # Kysely 类型、方言工厂、DbManager、迁移
+├─ repositories/           # 行 ↔ 领域对象，唯一写 SQL 的地方
+├─ services/               # 业务规则，唯一抛 AppError 的地方
+├─ errors/                 # AppError + 错误码集中表
+├─ web/
+│  ├─ middleware/          # csrf / auth / context / rateLimits / maintenance / errorHandler
+│  ├─ routes/              # 只做「鉴权 → zod → service → render」
+│  ├─ views/               # BaseLayout + components + pages（TSX）
+│  └─ shared/messages.ts   # 面向用户的文案字典
+├─ client/                 # 渐进增强 TS（Vite 多入口）
+├─ styles/                 # 设计 token + 组件 CSS（@layer）
+└─ static/                 # favicon、sprite
 ```
 
-`testServer` is an optional string field (e.g., "Pico Test #3"); empty string normalizes to `null`. `position` is **not** unique and **not** the key — always look up by `id`. **`position` is derived, not user-supplied**: `saveLeaderboard()` runs `rankEntries()` on every persistence, sorting `points` desc with competition ranking on ties (1, 1, 3, 4, 4, 6 ...) and player name as the stable tiebreak. Don't accept `position` from forms or trust an inbound value — write whatever you want and let saveLeaderboard recompute.
+### 几条不变量
 
-There are two write endpoints per entry on purpose:
-- `POST /admin/entries/:id/update` — full replace, including categories (uses `parseCategoryPayload` to harvest `category__*` fields).
-- `POST /admin/entries/:id/quick` — partial patch of `{ points, rank, testServer }` only. Only the fields actually present in the body are updated; categories are untouched. The quick-edit form on the dashboard sends all three but the route is robust to subsets.
+**中间件顺序是 load-bearing。** `app.ts` 里公开 API 必须挂在 `csrfProtection` **之前**，
+否则外部机器人的 GET 请求会被 CSRF 中间件链上，且 API 错误会落到 HTML 错误页而非 JSON 信封。
 
-When adding more entry fields, prefer extending the quick-edit shape (and `quickEditSchema`) rather than overloading the full update.
+**repository 每次调用都向 DbManager 索取当前连接**（`BaseRepository` 的 `db` 是 getter），
+绝不在构造时捕获。这正是运行时热切库的支点——切换只是换掉 `DbManager` 里的指针。
 
-### Category management
+**`position` 不落库。** 读取时由 `utils/ranking.ts` 的 `rankEntries()` 计算：积分降序、
+同分共享名次并跳号（1,1,3,4,4,6）、玩家名做稳定 tiebreak。这个顺序出现在公开 API 里，
+改它就是破坏契约。
 
-Categories are the union of keys present in `entry.categories` across all entries (no separate registry). Mutations live in `src/services/categoryService.js` and **walk every entry**:
+**细分项目是一等实体**（`categories` 表 + `entry_tiers` 关联表）。旧站把它定义为
+所有条目 `categories` 键的并集，于是增删改都要遍历全表；现在改名是改一行，
+删除靠外键级联，条目上的定级自动跟随。
 
-- `addCategory(name)` — sets `categories[name] = null` on every entry. Rejects duplicates.
-- `renameCategory(from, to)` — copies value, deletes old key. Rejects when target exists.
-- `deleteCategory(name)` — removes key from every entry.
+**验证码以 HMAC 落库**（密钥由 `SESSION_SECRET` 经 HKDF 派生）。6 位数字空间只有 10⁶，
+明文存储意味着数据库一旦只读泄露就能直接冒用。`services/verificationService.ts`
+是验证码的唯一实现，`verify_email` 与 `reset_password` 共用同一套状态机。
 
-Errors are thrown with `error.code` of `CATEGORY_EXISTS` or `CATEGORY_NOT_FOUND`; routes redirect with the code in the query string and the view maps to user-facing strings. Keep this contract when adding new operations.
+### 错误与文案
 
-### CSRF and CSP
+`AppError(code, { meta })` 是唯一的业务异常类型，码表在 `errors/codes.ts`
+（码 → HTTP 状态 → 中文文案）。`errorHandler` 只有两个出口：`/api/v1/*` 走
+JSON 信封 `{ error, message }`；其余渲染错误页。
 
-`csurf` is mounted globally in `src/server.js`, so **every** POST requires a valid CSRF token. The token is exposed to all views via `res.locals.csrfToken`; every form must include `<input type="hidden" name="_csrf" value="<%= csrfToken %>">`. New forms missing this will 403 — including admin forms, `/login`, `/verify`, `/reset`, OAuth link/unlink, etc.
+跨重定向的提示只走 **PRG + session flash**（`setFlash(req, kind, id)`），
+文案键在 `web/shared/messages.ts`。不要再引入 `?error=code` 这类查询参数机制。
 
-Helmet's CSP is configured explicitly: `defaultSrc 'self'`, `scriptSrc 'self'`, `styleSrc 'self' 'unsafe-inline'`, `imgSrc 'self' data:`, `connectSrc 'self'`. Helmet's default `scriptSrcAttr 'none'` is left in place, so **inline event handlers like `onclick`/`onsubmit` are blocked**. Use the `data-confirm="..."` attribute on forms instead — `public/main.js` has a global submit listener that intercepts, runs `window.confirm`, and prevents default if cancelled. There is also a global submit handler that puts the login button into a "登录中…" state when `#loginForm` submits.
+### 公开 API v1 是契约冻结区
 
-Do not relax CSP without a strong reason, and do **not** use `helmet({ contentSecurityPolicy: false })` as a shortcut. If you need a one-off inline script, move it into `public/main.js` instead.
+`tests/golden/api-v1.json` 是用固定 fixture 在**旧站**上录制的 22 条真实响应快照
+（状态码 + 关键响应头 + 响应体）。`tests/contract/apiV1.test.ts` 把同一份 fixture 灌进
+新实现逐字段比对。外部机器人在消费这些端点，所以**测试失败意味着契约被破坏，
+应当改实现而不是改基线**。
 
-### Flash messages
+基线锁住了一些手写期望值一定会漏的细节：zod 的默认错误文案
+（`Too small: expected number to be >=1`、`Invalid input: expected number, received NaN`）、
+404 消息里嵌的原始路径、tier 分桶排序（HT 先于 LT，再按积分降序，再按名字升序）、
+`count`/`offset` 是**每个分桶**而非全局、以及无法解析的 tier 在 `/players/:name` 里转成 `null`。
 
-Server-side flashes go through `setFlash(req, { kind, text })`, stored on `req.session.flash` and consumed-and-cleared by the layout (one read empties it). Use this for cross-redirect notices (e.g. "邮箱验证成功，请用账号 / 邮箱 + 密码登录") instead of appending to query strings.
+### 数据库切换
 
-CSRF is enforced globally via `csurf` (npm package itself is deprecated upstream but functional; replace only with a deliberate plan). Every state-changing form **must** include `<input type="hidden" name="_csrf" value="<%= csrfToken %>">`. The token is exposed via `res.locals.csrfToken` by the bootstrap middleware in `server.js`, so EJS templates can use it directly. The global error handler maps `EBADCSRFTOKEN` to a friendly Chinese "安全校验失败" page telling the user to Ctrl+Shift+R — don't let CSRF errors fall through to the generic 500.
+连接配置存 `data/db-config.json`（0600、原子写、gitignore），文件缺失即默认 SQLite，
+因此全新部署零配置可跑。`/admin/database`（仅 SuperAdmin）提供测试连接与切换。
 
-### Validation contract
+`services/dbSwitchService.ts` 的安全性来自一条不变量：**active 指针在全部工作成功之前
+绝不移动**。顺序是「连接 → 迁移 → 校验目标 → 维护模式 → 复制 → 逐表核对 → 写配置 → 切指针 →
+清会话」，任何一步失败都只需丢掉目标连接，旧库从未被写。切库后所有会话失效
+（会话不跨库搬迁），面板会提示重新登录。
 
-All POST bodies are validated with zod schemas in `src/utils/validation.js`. On failure, admin endpoints typically redirect to `?error=<code>` and the page maps the code to a Chinese string at render time — both the route and the view must stay in sync when adding new error codes. The zod schemas use `.transform()` to normalize empty-string fields (e.g. `testServer`) to `null`; don't strip empty strings yourself.
+目标库连不上导致进程起不来时，用 `FORCE_SQLITE=1` 强制回退，或直接删除
+`data/db-config.json`。
 
-### Public read-only API (`/api/v1/`)
+### 三级 RBAC
 
-Four GET-only JSON endpoints for external bots, defined in `src/routes/api.js`:
+`SuperAdmin`（恰好一个，由 `ADMIN_USERNAME` 指定）| `Admin` | `User`。
+不变量集中在 `services/userService.ts`：SuperAdmin 不可降级/删除，任何人不能对自己操作。
+中间件在 `web/middleware/auth.ts`——`requireAuth` 每次都回查数据库并刷新会话快照，
+因为账号可能已被删除或降级（旧站只看会话快照，已删用户的旧会话仍能通行）。
 
-- `GET /api/v1/gamemodes` — array of all gamemode names (union of `entry.categories` keys, alphabetical).
-- `GET /api/v1/rankings?limit=&offset=` — overall leaderboard sorted by `position`. `limit` 1..200 default 50, `offset` >=0 default 0.
-- `GET /api/v1/rankings/:gamemode?count=&offset=` — gamemode rankings grouped into 5 tier buckets (`"1"`..`"5"`). `count` 1..50 default 10, applied **per bucket** (so a single call returns up to `count * 5` players). Within each bucket: HT sorts before LT, then `points` desc, then `name` asc. Gamemode lookup is case-insensitive; canonical case is returned in the response. Unparseable tier strings (anything not matching `/^(HT|LT)([1-5])$/i`) are `console.warn`'d and skipped.
-- `GET /api/v1/players/:name` — single player. `categories` includes **every** known gamemode key with `null` for the ones the player has no tier in. Player lookup is case-insensitive.
+### 前端
 
-All responses are `application/json; charset=utf-8` with `Cache-Control: public, max-age=60`. Errors use the envelope `{ error: "<code>", message: "<text>" }` — codes are `invalid_query` (400), `not_found` / `gamemode_not_found` (404), `rate_limited` (429), `internal_error` (500). The `testServer` field is intentionally **not** surfaced (it's a placeholder column right now).
+视觉方向是「材质段位」：把 Minecraft 的材质进阶（石→铁→铜→金→钻石→绿宝石→下界合金）
+翻译成 7 档段位徽章色阶，配分段式 XP 槽与像素 SVG 图标。签名元素限量，其余扁平安静。
+段位匹配刻意宽容（忽略大小写/空格/`Subtier` 前缀），认不出的退回石质档而不是消失。
 
-**Mount order is load-bearing.** In `src/server.js` the API is mounted **before** `app.use(csrfProtection)`:
+榜单用 `<ol>` + CSS Grid，桌面与移动**共用一份标记**（靠 `grid-template-areas` 重排），
+不再需要旧站的 `data-label` 双维护。排序与搜索都是服务端行为（URL 参数），
+客户端脚本只做增强，禁用 JS 后功能完整。
 
-```js
-app.use('/api/v1', apiCors, apiLimiter, require('./routes/api'));
-```
+`<Form>` 组件自动注入 CSRF 隐藏域——旧站 22 个表单各自手抄一遍，漏写就是运行时 403。
 
-Otherwise csurf would chain the request and API errors would fall through to the HTML error handler. The API router has its own JSON error handler (and JSON 404 catch-all) at the end of `src/routes/api.js`; do not let API errors fall through to `server.js`'s EJS error handler.
+CSP 已收紧到 `style-src 'self'`（零内联样式，动态值走属性如 `<progress value max>`）。
+`npm run check:inline` 与 `tests/integration/accessibility.test.ts` 会持续守住这条。
 
-`apiLimiter` is 60 req/min per IP (separate from `loginLimiter` and `mailIpLimiter`). `apiCors` is hand-rolled (no `cors` package) and emits `Access-Control-Allow-Origin: *`, `…-Methods: GET, OPTIONS`, with `OPTIONS` short-circuited to 204.
+## 环境变量
 
-Spec: `docs/superpowers/specs/2026-05-12-public-api-design.md`. Plan: `docs/superpowers/plans/2026-05-12-public-api.md`.
+`.env.example` 是权威列表。几个容易出错的：
 
-### Things that look optional but aren't
+- **`SESSION_SECRET`**：生产环境**必须**设置，缺失直接启动失败（旧站是静默用随机值）。
+  它同时用于会话签名与验证码 HMAC 派生。
+- `APP_BASE_URL`：拼装 Microsoft OAuth 的 `redirect_uri`，必须与 Azure 应用注册里登记的完全一致。
+- `EMAIL_FROM`：必须是 RFC 5322 形式且域名已在 Resend 验证，否则 4xx。
+- `MS_OAUTH_CLIENT_SECRET`：只从环境变量读，不入库、不在后台表单出现。
+- `DATA_DIR`：数据目录，默认 `<cwd>/data`。旧站也支持（用于隔离测试）。
+- `FORCE_SQLITE=1`：忽略 `db-config.json` 强制用 SQLite，救急用。
 
-- `APP_BASE_URL` is used to assemble the Microsoft OAuth `redirect_uri` and any absolute URL the OAuth flow needs. Mismatched value = Microsoft rejects the callback. (Email flows are code-based and don't embed links, so they are unaffected.)
-- `EMAIL_FROM` must use the RFC 5322 form `"Display Name <addr@domain>"` and the domain must be verified in Resend, otherwise sends 4xx.
-- `trust proxy` is on so the rate limiter sees real IPs from `X-Forwarded-For` (Cloudflare Tunnel deployment). Each `rateLimit()` carries `validate: { trustProxy: false }` to suppress the express-rate-limit warning. If you ever expose the app without a trusted proxy in front, narrow `trust proxy` accordingly.
-- Sessions live in `data/sessions.json` (`FileSessionStore`). Restart no longer logs everyone out. The store atomically writes via tempfile+rename and serialises writes through its own queue; do not write `data/sessions.json` from anywhere else.
+Resend 与 Microsoft OAuth 都是**手写 fetch，不引 SDK**——两个集成各只用到一两个端点，
+SDK 的收益不抵依赖成本。这个取舍从旧站延续，请勿引入 `resend`、`passport` 等。
 
-### Spec record
+## 上线切换清单
 
-`docs/superpowers/specs/2026-05-03-subtier-revamp-design.md` captures the design rationale for the user accounts + roles + OAuth + UI revamp. Read it if you need context on why the user model has the shape it does or why the SuperAdmin invariant is enforced where it is.
+新站已通过全部门禁与生产形态冒烟，但**尚未接管流量**。切换需要人工决定时机，步骤：
+
+1. **确认服务器 Node ≥ 22**，且 `.env` 里有 `SESSION_SECRET`（新站缺失会拒绝启动）。
+2. 停旧站，**备份 `data/*.json`**。
+3. `npm run db:import -- --dry-run` 看报告，确认用户/条目/定级数量与排名前 10 名一致。
+   有「只差大小写的重复账号」时会中止并列出，需人工处理后重跑。
+4. `npm run db:import` 正式导入（幂等，可重跑）。
+5. `npm run build`。
+6. 把 `ecosystem.config.cjs` 的 `script` 改为 `dist/server/server.js`，
+   `package.json` 的 `start` 改为 `node dist/server/server.js`。
+7. `pm2 restart subtier`，跑冒烟：首页、`/api/docs`、四个 API 端点、登录、后台。
+8. 观察外部机器人对 `/api/v1/*` 的调用 48 小时。
+9. 稳定后再删除 `src/`、`views/`、`public/`、`src/package.json`，
+   并从依赖里移除 `csurf`、`exceljs`、`ejs`、`nodemon`。
+
+导入**建议在启动新站之前**做：新站启动时会 seed 一个 `admin` 账号，之后导入同名/同邮箱的
+旧账号会走「合并」路径（保留已有 id、更新其余字段）。顺序颠倒不会失败，但报告里会出现
+「与已有账号合并」，属正常。
