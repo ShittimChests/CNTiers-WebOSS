@@ -14,9 +14,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > `src/`/`views/`/`public/`，也不要动 `csurf`/`exceljs`/`ejs`/`nodemon` 这几个依赖。
 >
 > 本仓库是 CNTiers 网站的**开源版本**（`ShittimChests/CNTiers-WebOSS`），AGPL-3.0。
-> 面向用户的字标一律是 **CNTiers**（导航栏用全大写 `CNTIERS`）。唯一的例外在
-> `views/partials/footer.ejs`，那里的「[1.9+] CN Subtiers 测试群」是 QQ 群的真实
-> 名称而非站点字标，不要一起改。`tests/golden/api-v1.json` 里的 `SubtierMaster` /
+> 面向用户的字标一律是 **CNTiers**（导航栏用全大写 `CNTIERS`）。例外只有两处：
+> `views/partials/footer.ejs` 的「[1.9+] CN Subtiers 测试群」是 QQ 群的真实名称
+> 而非站点字标；`.env.example` 的 `EMAIL_FROM=Subtier Staff <…>` 是刻意保留的
+> 发件人显示名。都不要改。`tests/golden/api-v1.json` 里的 `SubtierMaster` /
 > `SubtierGrandmaster` 是段位名，属契约冻结区，更不能动。
 >
 > 新代码的硬性约定：

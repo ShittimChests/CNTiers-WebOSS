@@ -62,7 +62,7 @@ pm2 start ecosystem.config.cjs
 ```bash
 tar -xzf cntiers-web-oss-*.tar.gz && cd cntiers-web-oss-*
 npm ci --omit=dev          # better-sqlite3 在此编译，需要 Node >= 22
-cp .env.example .env
+cp .env.example .env       # 生产必须填 SESSION_SECRET（>=32 字符）与 APP_BASE_URL
 pm2 start ecosystem.config.cjs
 ```
 

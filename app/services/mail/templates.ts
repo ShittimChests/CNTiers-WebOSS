@@ -54,7 +54,7 @@ export function verificationMail(code: string, recipientName: string): RenderedM
   return {
     subject: 'CNTiers 邮箱验证码',
     html: codeEmailHtml({
-      eyebrow: 'SUBTIER STAFF',
+      eyebrow: 'CNTIERS STAFF',
       heading: `${recipientName || '玩家'}，欢迎加入`,
       intro: '在打开的注册页面输入下方 6 位验证码完成邮箱验证。',
       code,
@@ -68,7 +68,7 @@ export function passwordResetMail(code: string, recipientName: string): Rendered
   return {
     subject: 'CNTiers 密码重置验证码',
     html: codeEmailHtml({
-      eyebrow: 'SUBTIER STAFF',
+      eyebrow: 'CNTIERS STAFF',
       heading: `${recipientName || '玩家'}，重置你的密码`,
       intro: '在打开的密码重置页面输入下方 6 位验证码，并设置新密码。',
       code,
