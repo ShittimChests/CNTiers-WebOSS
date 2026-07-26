@@ -168,11 +168,17 @@ export class OauthService {
    * 旧实现用的是无上界的 `for (let i = 1; ; i++)`，每轮还要全表扫描。
    */
   async #uniqueUsername(displayName: string): Promise<string> {
+    /*
+     * 截断长度受 users.username 的 varchar(32) 约束，而后缀也要算进去：
+     * 兜底分支是 `${base}-${8 位十六进制}`，截到 24 的话总长 33，超出一个字符。
+     * SQLite 不强制 varchar 长度，所以这条只会在 PostgreSQL / MySQL 上炸——
+     * 正是最难在本地复现的那种。22 给两种后缀都留足了余量。
+     */
     const base =
       displayName
         .normalize('NFKD')
         .replace(/[^A-Za-z0-9_-]/g, '')
-        .slice(0, 24) || 'msuser';
+        .slice(0, 22) || 'msuser';
 
     if (!(await this.users.isUsernameTaken(base))) return base;
 

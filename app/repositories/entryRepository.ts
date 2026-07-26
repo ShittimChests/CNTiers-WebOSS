@@ -156,7 +156,15 @@ export class EntryRepository extends BaseRepository {
     return out;
   }
 
-  /** 按项目名写入定级。名字查不到对应项目的静默跳过——项目可能刚被删掉。 */
+  /**
+   * 按项目名写入定级。名字查不到对应项目的静默跳过——项目可能刚被删掉。
+   *
+   * 查找走 `name_lower` 而不是 `name`：这是全仓库对「大小写不敏感查找」的统一
+   * 约定（见 base.ts 的 lower），也是唯一能在三方言下行为一致的写法——MySQL 的
+   * 默认排序规则是 `utf8mb4_0900_ai_ci`，`where name in (...)` 在那里本来就不区分
+   * 大小写，而 PostgreSQL 与 SQLite 区分。用 `name` 会让同一份表单在不同库上
+   * 一个写进去、一个静默丢掉。
+   */
   async #writeTiers(
     trx: Transaction<Database>,
     entryId: string,
@@ -167,16 +175,24 @@ export class EntryRepository extends BaseRepository {
 
     const categories = await trx
       .selectFrom('categories')
-      .select(['id', 'name'])
-      .where('name', 'in', names)
+      .select(['id', 'name_lower'])
+      .where(
+        'name_lower',
+        'in',
+        names.map((name) => lower(name))
+      )
       .execute();
 
-    const idByName = new Map(categories.map((c) => [c.name, c.id]));
-    const values = names
-      .map((name) => ({ entry_id: entryId, category_id: idByName.get(name), tier: tiers[name]! }))
-      .filter((row): row is { entry_id: string; category_id: string; tier: string } =>
-        Boolean(row.category_id)
-      );
+    const idByLower = new Map(categories.map((c) => [c.name_lower, c.id]));
+    // 只差大小写的两个键指向同一行，去重否则撞 (entry_id, category_id) 主键
+    const seen = new Set<string>();
+    const values: { entry_id: string; category_id: string; tier: string }[] = [];
+    for (const name of names) {
+      const categoryId = idByLower.get(lower(name));
+      if (!categoryId || seen.has(categoryId)) continue;
+      seen.add(categoryId);
+      values.push({ entry_id: entryId, category_id: categoryId, tier: tiers[name]! });
+    }
 
     if (values.length > 0) {
       await trx.insertInto('entry_tiers').values(values).execute();

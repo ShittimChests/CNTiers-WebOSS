@@ -4,6 +4,7 @@
  * 与 CLI（scripts/migrate-json.ts）分离，好处是这段决定生产数据命运的代码
  * 可以被测试直接调用，而不必去驱动一个进程。M8 删除旧站时本文件一并删除。
  */
+import { randomUUID } from 'node:crypto';
 import type { Transaction } from 'kysely';
 import { ROLES, type Role } from '../../app/config/constants.js';
 import type { DbDriver } from '../../app/db/dialects.js';
@@ -201,29 +202,49 @@ export async function importLegacyData(
     report.users += 1;
   }
 
-  // --- 细分项目：旧结构里是所有条目 categories 键的并集 ---
-  const categoryNames = [
-    ...new Set(data.entries.flatMap((entry) => Object.keys(entry.categories ?? {})))
-  ].sort();
+  /*
+   * --- 细分项目：旧结构里是所有条目 categories 键的并集 ---
+   *
+   * 按 `name_lower` 去重而不是按原始键。旧站的项目名来自 Excel 表头
+   * （`String(header).trim()`，不校验大小写），同一个项目在不同条目里写成
+   * `Crystal` 和 `crystal` 是完全可能的；而目标库里 `name_lower` 是唯一的，
+   * 两个键只会对应同一行。按原始键建映射的话，后面写 entry_tiers 时这两个键
+   * 会给出同一个 category_id，撞上 (entry_id, category_id) 主键，整个导入事务
+   * 回滚——恰好是这段代码最该容忍的那类历史数据。
+   */
+  const categoryNameByLower = new Map<string, string>();
+  for (const entry of data.entries) {
+    for (const name of Object.keys(entry.categories ?? {})) {
+      // 首次出现的写法胜出，只是为了让结果稳定
+      if (!categoryNameByLower.has(lower(name))) categoryNameByLower.set(lower(name), name);
+    }
+  }
 
-  const categoryIdByName = new Map<string, string>();
-  for (const name of categoryNames) {
+  const categoryIdByLower = new Map<string, string>();
+  for (const key of [...categoryNameByLower.keys()].sort()) {
+    const name = categoryNameByLower.get(key)!;
     const existing = await trx
       .selectFrom('categories')
       .select(['id'])
-      .where('name_lower', '=', lower(name))
+      .where('name_lower', '=', key)
       .executeTakeFirst();
 
     if (existing) {
-      categoryIdByName.set(name, existing.id);
+      categoryIdByLower.set(key, existing.id);
       continue;
     }
-    const id = `cat-${lower(name).replace(/[^a-z0-9]+/g, '-')}`;
+    /*
+     * id 用随机值而不是从名字派生。派生写法（`cat-` + 名字里非字母数字替换成 `-`）
+     * 会把 `Crystal PvP` 与 `Crystal-PvP` 这两个不同的 name_lower 折叠成同一个
+     * id，插入时主键冲突、整批回滚。幂等性不靠 id 稳定，靠的是上面那次
+     * name_lower 查找。
+     */
+    const id = `cat-${randomUUID()}`;
     await trx
       .insertInto('categories')
-      .values({ id, name, name_lower: lower(name), created_at: nowIso() })
+      .values({ id, name, name_lower: key, created_at: nowIso() })
       .execute();
-    categoryIdByName.set(name, id);
+    categoryIdByLower.set(key, id);
     report.categories += 1;
   }
 
@@ -254,14 +275,23 @@ export async function importLegacyData(
     // 重跑时先清掉旧定级，保证幂等
     await trx.deleteFrom('entry_tiers').where('entry_id', '=', row.id).execute();
 
+    // 同一条目里只差大小写的两个键指向同一行，第二个必须丢掉而不是撞主键
+    const writtenCategories = new Set<string>();
     for (const [name, tier] of Object.entries(entry.categories ?? {})) {
       // 旧结构用 null 占位表示未定级；新结构直接不建行
       if (tier === null || tier === undefined || String(tier).trim() === '') continue;
-      const categoryId = categoryIdByName.get(name);
+      const categoryId = categoryIdByLower.get(lower(name));
       if (!categoryId) {
         report.skippedTiers.push({ player, category: name });
         continue;
       }
+      if (writtenCategories.has(categoryId)) {
+        report.skippedRecords.push(
+          `条目 ${player}：细分项目 ${name} 与已写入的同名项目重复，已跳过`
+        );
+        continue;
+      }
+      writtenCategories.add(categoryId);
       await trx
         .insertInto('entry_tiers')
         .values({ entry_id: row.id, category_id: categoryId, tier: String(tier).trim() })

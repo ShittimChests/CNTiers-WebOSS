@@ -257,8 +257,36 @@ describe('CategoryService', () => {
     expect((await s.entries.findById(entry.id))?.tiers).toEqual({ Axe: 'LT2' });
   });
 
-  it('resolveIds 按名字解析（大小写不敏感），未知名字被忽略', async () => {
-    const resolved = await s.categoryService.resolveIds(['sword', 'AXE', 'Unknown']);
-    expect([...resolved.keys()]).toEqual(['sword', 'AXE']);
+  /*
+   * 定级写入按 name_lower 匹配。这是唯一能在三方言下行为一致的写法：MySQL 的
+   * 默认排序规则 utf8mb4_0900_ai_ci 让 `where name in (...)` 天然不区分大小写，
+   * 而 PostgreSQL 与 SQLite 区分——用 name 匹配会让同一份表单在不同库上一个
+   * 写进去、一个静默丢掉。CI 的 PG/MySQL 矩阵会把这条在三种库上各跑一遍。
+   */
+  it('定级按名字大小写不敏感地落到项目上，未知项目被忽略', async () => {
+    const entry = await s.entries.create({
+      player: 'P',
+      rank: 'R',
+      points: 1,
+      testServer: null,
+      tiers: { sword: 'HT1', AXE: 'LT2', Unknown: 'HT5' }
+    });
+
+    // 回读时用的是库里的规范大小写
+    expect((await s.entries.findById(entry.id))?.tiers).toEqual({ Sword: 'HT1', Axe: 'LT2' });
+  });
+
+  it('只差大小写的两个键指向同一项目时不撞主键', async () => {
+    // 旧站的项目名来自 Excel 表头，同一项目在不同条目里大小写不一致是真实存在的
+    const entry = await s.entries.create({
+      player: 'Q',
+      rank: 'R',
+      points: 1,
+      testServer: null,
+      tiers: { Sword: 'HT1', sword: 'LT3' }
+    });
+
+    const tiers = (await s.entries.findById(entry.id))?.tiers;
+    expect(Object.keys(tiers ?? {})).toEqual(['Sword']);
   });
 });

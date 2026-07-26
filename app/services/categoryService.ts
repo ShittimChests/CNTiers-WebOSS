@@ -48,18 +48,6 @@ export class CategoryService {
     if (!category) throw new AppError('category_not_found', { meta: { name } });
     await this.categories.delete(category.id);
   }
-
-  /** 按名字解析 id，供条目表单把 category__* 字段落到关联表。 */
-  async resolveIds(names: readonly string[]): Promise<Map<string, string>> {
-    const all = await this.categories.list();
-    const byLower = new Map(all.map((category) => [category.name.toLowerCase(), category]));
-    const out = new Map<string, string>();
-    for (const name of names) {
-      const found = byLower.get(name.trim().toLowerCase());
-      if (found) out.set(name, found.id);
-    }
-    return out;
-  }
 }
 
 export const categoryService = new CategoryService();

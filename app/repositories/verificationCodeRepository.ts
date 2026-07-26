@@ -82,15 +82,6 @@ export class VerificationCodeRepository extends BaseRepository {
       .where('purpose', '=', purpose)
       .execute();
   }
-
-  /** 清理过期记录。ISO 字符串可直接按字典序比较。 */
-  async deleteExpired(nowIsoString: string): Promise<number> {
-    const result = await this.db
-      .deleteFrom('verification_codes')
-      .where('expires_at', '<', nowIsoString)
-      .executeTakeFirst();
-    return Number(result.numDeletedRows ?? 0);
-  }
 }
 
 export const verificationCodeRepository = new VerificationCodeRepository();

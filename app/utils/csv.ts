@@ -19,8 +19,20 @@ function cellToText(value: unknown): string {
   return JSON.stringify(value) ?? '';
 }
 
+/**
+ * Excel / Sheets 会把以 `=` `+` `-` `@` 开头的单元格当公式执行，于是一个叫
+ * `=HYPERLINK("http://…")` 的玩家名会在别人打开导出时触发。玩家名与段位没有
+ * 字符集限制（见 validation.ts 的 entrySchema），所以这条不是理论风险。
+ *
+ * 只处理**字符串**单元格：数字走 cellToText 的 toString，负分的 `-5` 是合法数据，
+ * 给它加前缀会把一列数字变成文本。制表符与回车也要算进去——它们同样能开一个
+ * 新的解析上下文。
+ */
+const FORMULA_PREFIX = /^[=+\-@\t\r]/;
+
 function escapeCell(value: unknown): string {
-  const text = cellToText(value);
+  const raw = cellToText(value);
+  const text = typeof value === 'string' && FORMULA_PREFIX.test(raw) ? `'${raw}` : raw;
   if (/[",\r\n]/.test(text)) {
     return `"${text.replace(/"/g, '""')}"`;
   }

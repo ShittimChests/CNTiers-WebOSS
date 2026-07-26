@@ -235,6 +235,36 @@ describe('错误出口', () => {
   });
 });
 
+describe('公开 API 的 CORS 暴露清单', () => {
+  /*
+   * 自校验而不是把清单再抄一遍：断言「清单里写的名字，响应里真的存在」。
+   *
+   * 这条守的是一个很安静的失配——`standardHeaders: true` 在 express-rate-limit
+   * 里会被归一成 draft-6，发的是 RateLimit-Policy / -Limit / -Remaining / -Reset；
+   * 而裸的 `RateLimit` 是 draft-7 才有的。清单里写 `RateLimit` 的话，暴露的是一个
+   * 永远不存在的头，真正带配额的 -Remaining 与 -Reset 反而仍然读不到，
+   * 跨源调用方拿不到文档承诺的重试信息，且没有任何地方会报错。
+   */
+  it('清单里的每个 RateLimit 头都真的会发出来', async () => {
+    const response = await request(app).get('/api/v1/gamemodes');
+    expect(response.status).toBe(200);
+
+    const exposed = (response.headers['access-control-expose-headers'] ?? '')
+      .split(',')
+      .map((name: string) => name.trim().toLowerCase())
+      .filter((name: string) => name.length > 0);
+
+    // Retry-After 只在 429 上出现，单独列出而不参与下面的存在性检查
+    expect(exposed).toContain('retry-after');
+
+    const rateLimitHeaders = exposed.filter((name: string) => name.startsWith('ratelimit'));
+    expect(rateLimitHeaders.length).toBeGreaterThan(0);
+    for (const name of rateLimitHeaders) {
+      expect(response.headers[name], `${name} 在暴露清单里，但响应中并不存在`).toBeDefined();
+    }
+  });
+});
+
 describe('匿名请求不建立会话', () => {
   it('反复匿名 GET 既不下发 cookie 也不产生 sessions 行', async () => {
     /*

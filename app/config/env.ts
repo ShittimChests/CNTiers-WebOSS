@@ -65,6 +65,17 @@ const isTest = raw.NODE_ENV === 'test';
  * 校验只在 isProduction 分支做，不写进 zod schema：写进 schema 会让 dev 与
  * test 每次 import 都退出。
  */
+/**
+ * 生产环境下 SESSION_SECRET 的最低长度。
+ *
+ * 它同时是会话签名密钥与验证码 HMAC 的 HKDF 输入材料，短口令意味着这两件事
+ * 一起可爆破。文档里给的生成命令产出 64 个十六进制字符，32 只是下限。
+ */
+const MIN_SESSION_SECRET_LENGTH = 32;
+
+const SECRET_HINT =
+  "    生成方式：node -e \"console.log(require('node:crypto').randomBytes(32).toString('hex'))\"";
+
 function assertProductionEnv(): void {
   if (!isProduction) return;
 
@@ -72,7 +83,14 @@ function assertProductionEnv(): void {
   if (!raw.SESSION_SECRET || raw.SESSION_SECRET.length === 0) {
     missing.push(
       '  - SESSION_SECRET：同时用于会话签名与验证码 HMAC 派生，缺失会导致重启后会话与验证码全部失效。\n' +
-        "    生成方式：node -e \"console.log(require('node:crypto').randomBytes(32).toString('hex'))\""
+        SECRET_HINT
+    );
+  } else if (raw.SESSION_SECRET.length < MIN_SESSION_SECRET_LENGTH) {
+    missing.push(
+      `  - SESSION_SECRET：至少需要 ${String(MIN_SESSION_SECRET_LENGTH)} 个字符，当前只有 ` +
+        `${String(raw.SESSION_SECRET.length)} 个。它既是会话签名密钥，也是验证码 HMAC 的派生材料，` +
+        '短口令等于这两件事一起可爆破。\n' +
+        SECRET_HINT
     );
   }
   if (!raw.APP_BASE_URL) {

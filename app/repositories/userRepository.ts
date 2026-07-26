@@ -114,11 +114,6 @@ export class UserRepository extends BaseRepository {
     return toUser(row);
   }
 
-  /** 保留调用方指定的 id 与创建时间——JSON 迁移需要原样搬运历史记录。 */
-  async insertRaw(row: UserRow): Promise<void> {
-    await this.db.insertInto('users').values(row).execute();
-  }
-
   async update(id: string, patch: UserPatch): Promise<User> {
     const values: UserRowUpdate = { updated_at: nowIso() };
 

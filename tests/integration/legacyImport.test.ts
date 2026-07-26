@@ -158,6 +158,52 @@ describe('importLegacyData', () => {
     expect(await categories.listNames()).toEqual(['Axe', 'Crystal', 'Sword', 'Trident Box']);
   });
 
+  /*
+   * 下面两条守的是同一类历史数据：旧站的 Excel 导入直接把表头
+   * `String(header).trim()` 当项目名，既不校验大小写也不校验字符集。
+   * 它们原本都会以主键冲突炸掉整个导入事务——而导入是一次性的、
+   * 面向生产数据的操作，中途回滚只会留下一个「跑不通也不知道为什么」的现场。
+   */
+  it('只差大小写的项目名折叠成同一个项目，条目上的重复键被跳过并记入报告', async () => {
+    const data: LegacyData = {
+      users: [],
+      settings: {},
+      entries: [
+        { id: 'e1', player: 'Alpha', points: 10, categories: { Crystal: 'HT1' } },
+        // 同一个项目的另一种写法：目标库的 name_lower 唯一，只会有一行
+        { id: 'e2', player: 'Beta', points: 5, categories: { crystal: 'LT2' } },
+        // 同一条目里两种写法都出现——两条 tier 会指向同一个 category_id
+        { id: 'e3', player: 'Gamma', points: 1, categories: { Crystal: 'HT2', crystal: 'LT4' } }
+      ]
+    };
+
+    const report = await runImport(data);
+
+    expect(report.categories).toBe(1);
+    expect(await categories.listNames()).toEqual(['Crystal']);
+    expect(report.tiers).toBe(3);
+    expect(report.skippedRecords.some((line) => line.includes('Gamma'))).toBe(true);
+    expect((await entries.findByPlayer('Beta'))?.tiers).toEqual({ Crystal: 'LT2' });
+  });
+
+  it('归一后会撞成同一个 slug 的两个项目名各自独立', async () => {
+    // 派生 id（名字里非字母数字替换成 `-`）会把这两个折成同一个 `cat-crystal-pvp`
+    const data: LegacyData = {
+      users: [],
+      settings: {},
+      entries: [
+        { id: 'e1', player: 'Alpha', points: 10, categories: { 'Crystal PvP': 'HT1' } },
+        { id: 'e2', player: 'Beta', points: 5, categories: { 'Crystal-PvP': 'LT2' } }
+      ]
+    };
+
+    const report = await runImport(data);
+
+    expect(report.categories).toBe(2);
+    expect(await categories.listNames()).toEqual(['Crystal PvP', 'Crystal-PvP']);
+    expect(report.tiers).toBe(2);
+  });
+
   it('null 定级不建行，非 null 的照原样保留', async () => {
     const report = await runImport();
     // Carol: Sword+Axe（Crystal 为 null）= 2；Alice: Sword+Crystal = 2；Bob: 1；Dave: 2

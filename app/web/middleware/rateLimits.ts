@@ -76,8 +76,17 @@ export function apiCors(req: Request, res: Response, next: NextFunction): void {
   /*
    * Retry-After 与 RateLimit-* 都不在 CORS 的默认可读清单里，不显式暴露的话
    * 浏览器端的调用方只能读到 429 的响应体，读不到文档承诺的重试时间。
+   *
+   * 清单必须与 express-rate-limit **实际发出**的头一致。`standardHeaders: true`
+   * 会被归一成 draft-6（见 dist/index.cjs 的 `if (standardHeaders === true)`），
+   * 发的是 RateLimit-Policy / -Limit / -Remaining / -Reset；裸的 `RateLimit`
+   * 是 draft-7 才有的，写进清单只是暴露一个永远不存在的头，而真正带配额的
+   * -Remaining 与 -Reset 反倒仍然读不到。改限流器的 draft 版本时这里要同步。
    */
-  res.setHeader('Access-Control-Expose-Headers', 'Retry-After, RateLimit-Policy, RateLimit');
+  res.setHeader(
+    'Access-Control-Expose-Headers',
+    'Retry-After, RateLimit-Policy, RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset'
+  );
   res.setHeader('Access-Control-Max-Age', '86400');
   if (req.method === 'OPTIONS') {
     res.status(204).end();

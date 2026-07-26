@@ -172,7 +172,26 @@ adminDatabaseRouter.post('/admin/database/switch', requireSuperAdmin, (req, res,
       const result = await dbSwitchService.switchTo(target, parsed.data.mode);
       console.info(`切库完成，复制行数：${JSON.stringify(result.copied)}`);
 
-      // 会话已随切库清空，这里直接引导重新登录
+      /*
+       * 必须显式重建会话，不能只靠切库时清空 sessions 表。
+       *
+       * 那次清空打在**新库**上，而当前请求的会话还活在内存里；只要这个处理
+       * 函数再写它一次（setFlash 就是写），express-session 收尾时就会把它连同
+       * `user` 一起 upsert 回新库——于是「切库后所有会话失效」在操作者自己身上
+       * 不成立：migrate 模式下目标库是源库的副本，用户 id 照样查得到，管理员
+       * 会无缝保持登录。而 redirect 到 /login 又会被 requireGuest 弹去 /account，
+       * 那条成功提示在路上就被 attachContext 消费掉了，谁也看不到。
+       *
+       * regenerate 一次性解决两件事：旧会话被销毁（真的要求重新登录），新会话
+       * 干净且不含 user，于是 requireGuest 放行、flash 能在登录页渲染出来。
+       */
+      await new Promise<void>((resolve, reject) => {
+        req.session.regenerate((error) => {
+          if (error) reject(error instanceof Error ? error : new Error(String(error)));
+          else resolve();
+        });
+      });
+
       setFlash(req, 'success', 'admin.db.switched');
       res.redirect('/login');
     } catch (error) {

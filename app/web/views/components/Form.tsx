@@ -1,15 +1,22 @@
 import type { ComponentChildren } from 'preact';
 
-interface FormProps {
+interface FormBaseProps {
   action: string;
-  method?: 'post' | 'get';
-  /** POST 表单必传。GET 表单不需要，传了也会被忽略。 */
-  csrfToken?: string;
   /** 传入即启用提交前二次确认（由 forms 增强器接管；无脚本时直接提交）。 */
   confirm?: string;
   class?: string;
   children: ComponentChildren;
 }
+
+/**
+ * `csrfToken` 对 POST 是**必填**、对 GET 是禁止的。
+ *
+ * 写成判别联合而不是一个可选属性：可选属性下漏传只是渲染出
+ * `value=""`，仍然要等到运行时才表现为 403——那正是这个组件立意要消灭的
+ * 失败模式，没理由把它留在编译期之外。
+ */
+type FormProps = FormBaseProps &
+  ({ method?: 'post'; csrfToken: string } | { method: 'get'; csrfToken?: never });
 
 /**
  * 表单容器，自动注入 CSRF 隐藏域。

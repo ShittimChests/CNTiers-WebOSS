@@ -60,6 +60,24 @@ describe('生产环境必填项', () => {
     expect(result.stderr).toContain('APP_BASE_URL');
   }, 90_000);
 
+  it('SESSION_SECRET 太短也拒绝启动', async () => {
+    /*
+     * 它既是会话签名密钥，也是验证码 HMAC 的 HKDF 输入材料，短口令等于这两件事
+     * 一起可爆破。校验只看长度不看熵，所以下限给得宽松（文档里的生成命令产出
+     * 64 个十六进制字符）。
+     */
+    const result = await loadEnv({
+      ...PRODUCTION,
+      SESSION_SECRET: 'short',
+      APP_BASE_URL: 'https://subtier.example.com'
+    });
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).not.toContain('LOADED');
+    expect(result.stderr).toContain('SESSION_SECRET');
+    expect(result.stderr).toContain('32');
+  }, 90_000);
+
   it('只缺 APP_BASE_URL 也拒绝启动', async () => {
     const result = await loadEnv({ ...PRODUCTION, SESSION_SECRET: 'x'.repeat(32) });
 

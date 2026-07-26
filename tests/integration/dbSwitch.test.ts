@@ -414,6 +414,43 @@ describe('数据库面板', () => {
     expect(dbManager.currentConfig()).toEqual(SOURCE);
   });
 
+  /*
+   * 这条守的是「切库后要求重新登录」在**操作者自己**身上也成立。
+   *
+   * 服务层清空 sessions 打在新库上，而当前请求的会话还活在内存里；只要处理函数
+   * 之后再写它一次（setFlash 就是写），express-session 收尾时就会把它连同 user
+   * 一起 upsert 回新库。migrate 模式下目标库是源库的副本、用户 id 照样查得到，
+   * 于是管理员无缝保持登录，而 redirect 到 /login 又被 requireGuest 弹去 /account，
+   * 那条成功提示在路上就被 attachContext 消费掉、谁也看不到。
+   *
+   * 断言必须跟到落地页：只看 302 的 Location 是 /login 是发现不了的。
+   */
+  it('切换成功后当前会话被销毁，成功提示能在登录页看到', async () => {
+    const agent = await loginAs('Root');
+    const page = await agent.get('/admin/database');
+
+    const response = await agent
+      .post('/admin/database/switch')
+      .type('form')
+      .send({
+        _csrf: csrfOf(page.text),
+        driver: 'sqlite',
+        file: 'target.db',
+        mode: 'migrate',
+        confirmName: 'target.db'
+      });
+
+    expect(response.status).toBe(302);
+    expect(response.headers['location']).toBe('/login');
+    expect(dbManager.currentConfig()).toEqual(TARGET);
+
+    const landing = await agent.get('/login');
+    // 仍停留在登录页（没有被 requireGuest 弹走），说明登录态确实没了
+    expect(landing.status).toBe(200);
+    expect(landing.text).toContain('数据库已切换，请重新登录');
+    expect(landing.text).toContain('name="identifier"');
+  });
+
   it('确认短语不匹配时拒绝切换', async () => {
     const agent = await loginAs('Root');
     const page = await agent.get('/admin/database');

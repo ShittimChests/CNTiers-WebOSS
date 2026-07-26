@@ -219,8 +219,10 @@ CSP 已收紧到 `style-src 'self'`（零内联样式，动态值走属性如 `<
 
 `.env.example` 是权威列表。几个容易出错的：
 
-- **`SESSION_SECRET`**：生产环境**必须**设置，缺失直接启动失败（旧站是静默用随机值）。
-  它同时用于会话签名与验证码 HMAC 派生。
+- **`SESSION_SECRET`**：生产环境**必须**设置且**至少 32 个字符**，缺失或过短都直接启动失败
+  （旧站是静默用随机值）。它同时用于会话签名与验证码 HMAC 派生，两件事共用同一份密钥材料，
+  所以短口令等于两条防线一起被削弱。生成：
+  `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`。
 - **`APP_BASE_URL`**：生产环境**同样必须**设置，缺失直接启动失败。它不只是拼 Microsoft
   OAuth 的 `redirect_uri`（必须与 Azure 应用注册里登记的完全一致）——`isHttps` 也从它推导，
   一旦退回 `http://localhost:PORT`，会话 cookie 会静默丢掉 `Secure`、CSP 会丢掉
@@ -237,8 +239,8 @@ SDK 的收益不抵依赖成本。这个取舍从旧站延续，请勿引入 `re
 
 新站已通过全部门禁与生产形态冒烟，但**尚未接管流量**。切换需要人工决定时机，步骤：
 
-1. **确认服务器 Node ≥ 22**，且 `.env` 里有 `SESSION_SECRET` **与 `APP_BASE_URL`**
-   （两者缺任一都会拒绝启动）。
+1. **确认服务器 Node ≥ 22**，且 `.env` 里有 `SESSION_SECRET`（≥ 32 字符）**与 `APP_BASE_URL`**
+   （缺任一或密钥过短都会拒绝启动）。
 2. 停旧站，**备份 `data/*.json`**。
 3. `npm run db:import -- --dry-run` 看报告，确认用户/条目/定级数量与排名前 10 名一致。
    有「只差大小写的重复账号」时会中止并列出，需人工处理后重跑。

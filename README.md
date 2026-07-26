@@ -33,7 +33,8 @@ npm run db:import                 # 正式导入（幂等，可重跑）
 
 参考 `.env.example`。生产环境有两个变量**必须**设置，缺任一进程都会拒绝启动：
 
-- `SESSION_SECRET`：同时用于会话签名与验证码 HMAC 派生。
+- `SESSION_SECRET`：同时用于会话签名与验证码 HMAC 派生，因此**至少 32 个字符**（过短同样拒绝启动）。
+  生成：`node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`。
 - `APP_BASE_URL`：站点对外地址。`isHttps` 从它推导，一旦退回 `http://localhost:PORT`，
   会话 cookie 会静默丢掉 `Secure`、CSP 会丢掉 `upgrade-insecure-requests`，
   Microsoft OAuth 的 `redirect_uri` 也会拼错——三件事都不报错，所以宁可不启动。
