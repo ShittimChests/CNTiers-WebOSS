@@ -7,8 +7,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "start": "node src/server.js",
-    "start:next": "node dist/server/server.js",
+    "start": "node dist/server/server.js",
+    "start:legacy": "node src/server.js",
     "dev": "tsx watch app/server.ts",
     "dev:assets": "vite build --watch",
     "dev:legacy": "nodemon src/server.js",
