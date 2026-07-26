@@ -11,8 +11,8 @@
  *
  * dry-run 是在事务内完整执行导入后回滚，因此报告与真实导入完全同源。
  *
- * **目标只支持 SQLite**（--db 收的是 data/ 下的文件名）。这与上线切换清单
- * 的顺序一致：先导进 SQLite，再用 /admin/database 面板迁移到 PostgreSQL /
+ * **目标只支持 SQLite**（--db 收的是 data/ 下的文件名）。这与 CLAUDE.md 里
+ * 部署步骤的顺序一致：先导进 SQLite，再用 /admin/database 面板迁移到 PostgreSQL /
  * MySQL——面板会复制数据并逐表核对，比在这里再写一套连接参数解析更可靠。
  */
 import { readFile } from 'node:fs/promises';

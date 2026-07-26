@@ -227,7 +227,7 @@ app.get('/', async (req, res, next) => {
     const entries = await getLeaderboard();
     const { sorted, categories } = summariseEntries(entries);
     res.render('index', {
-      title: "CN Subtiers",
+      title: "CNTiers",
       entries: sorted,
       categories,
       stats: { totalPlayers: entries.length, totalCategories: categories.length }
