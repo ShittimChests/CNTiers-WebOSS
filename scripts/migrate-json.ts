@@ -96,7 +96,12 @@ async function main(): Promise<void> {
         .db()
         .transaction()
         .execute(async (trx) => {
-          report = await importLegacyData(trx, { users, entries, settings }, superAdminName);
+          report = await importLegacyData(
+            trx,
+            { users, entries, settings },
+            superAdminName,
+            dbConfig.driver
+          );
           if (dryRun) throw new DryRunRollback();
         });
     } catch (error) {
@@ -126,8 +131,7 @@ async function main(): Promise<void> {
      * 的 normalizeRole 沿用了这条规则），所以旧数据里有几个这样的账号，导入后
      * 就有几个 SuperAdmin。新站不允许对 SuperAdmin 降级或删除，多出来的那些
      * 在后台里动不了，必须在这里就让人看到。
-     */
-    /*
+     *
      * 判据不能只是「多于一个」：「恰好一个、但不是 ADMIN_USERNAME」同样是坑——
      * ensureSuperAdmin 见到已有别的 SuperAdmin 就只打一行 warn 返回，不会再创建
      * ADMIN_USERNAME 对应的账号，于是操作者手上一个能用的 SuperAdmin 都没有，

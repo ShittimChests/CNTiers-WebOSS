@@ -6,7 +6,9 @@
  */
 import type { Transaction } from 'kysely';
 import { ROLES, type Role } from '../../app/config/constants.js';
+import type { DbDriver } from '../../app/db/dialects.js';
 import type { Database } from '../../app/db/types.js';
+import { upsertRow } from '../../app/db/upsert.js';
 import { rankEntries } from '../../app/utils/ranking.js';
 
 // ---------- 旧数据形状（宽松：历史记录可能缺字段） ----------
@@ -115,10 +117,17 @@ export function findConflicts(users: LegacyUser[]): Conflict[] {
   return conflicts;
 }
 
+/**
+ * 把旧数据导进目标库。
+ *
+ * `driver` 必须显式传：upsert 的语法三方言不通用（见 app/db/upsert.ts），而这里
+ * 拿到的是一个 `Transaction`，没法像 repository 那样从 DbManager 现取当前方言。
+ */
 export async function importLegacyData(
   trx: Transaction<Database>,
   data: LegacyData,
-  superAdminName: string
+  superAdminName: string,
+  driver: DbDriver
 ): Promise<ImportReport> {
   const report: ImportReport = {
     users: 0,
@@ -239,11 +248,7 @@ export async function importLegacyData(
       updated_at: entry.updatedAt ?? timestamp
     };
 
-    await trx
-      .insertInto('entries')
-      .values(row)
-      .onConflict((oc) => oc.column('id').doUpdateSet(row))
-      .execute();
+    await upsertRow(trx.insertInto('entries').values(row), driver, ['id'], row).execute();
     report.entries += 1;
 
     // 重跑时先清掉旧定级，保证幂等
@@ -276,11 +281,12 @@ export async function importLegacyData(
   };
   for (const [key, value] of Object.entries(settingsToWrite)) {
     const serialized = JSON.stringify(value);
-    await trx
-      .insertInto('settings')
-      .values({ setting_key: key, setting_value: serialized })
-      .onConflict((oc) => oc.column('setting_key').doUpdateSet({ setting_value: serialized }))
-      .execute();
+    await upsertRow(
+      trx.insertInto('settings').values({ setting_key: key, setting_value: serialized }),
+      driver,
+      ['setting_key'],
+      { setting_value: serialized }
+    ).execute();
     report.settings += 1;
   }
 

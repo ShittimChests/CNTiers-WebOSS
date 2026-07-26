@@ -10,18 +10,17 @@ module.exports = {
   apps: [
     {
       name: 'subtier',
-      // 现役旧站；切换后改为 'dist/server/server.js'
+      // 待切换的旧站；切换后改为 'dist/server/server.js'
       script: 'src/server.js',
       /*
-       * 切到新站时必须同时加上：
-       *   env: { NODE_ENV: 'production' }
+       * NODE_ENV 必须显式设。
        *
        * 新站把 SESSION_SECRET / APP_BASE_URL 的强制校验、会话 cookie 的 Secure、
-       * CSP 的 upgrade-insecure-requests 全挂在 NODE_ENV 上。不设的话这些保护
-       * 一条都不生效，且不会报错。这里刻意不提前加：现在跑的还是旧站，
-       * 旧站在 production 下会把 cookie 切成 Secure，属于线上行为变更，
-       * 应当与切换同一步进行。
+       * CSP 的 upgrade-insecure-requests 全挂在它上面，而 PM2 默认不设它——
+       * 漏掉的话这些保护一条都不会生效，并且**不会有任何报错**。
+       * 启动日志会打出「（NODE_ENV=…）」，用它确认。
        */
+      env: { NODE_ENV: 'production' },
       /*
        * 刻意不设 instances：必须是 fork 模式的单进程。
        *

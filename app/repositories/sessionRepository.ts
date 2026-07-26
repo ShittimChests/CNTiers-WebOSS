@@ -1,3 +1,4 @@
+import { upsertRow } from '../db/upsert.js';
 import { BaseRepository } from './base.js';
 
 export interface StoredSession {
@@ -25,22 +26,21 @@ export class SessionRepository extends BaseRepository {
   }
 
   async set(session: StoredSession): Promise<void> {
-    await this.db
-      .insertInto('sessions')
-      .values({
+    await upsertRow(
+      this.db.insertInto('sessions').values({
         sid: session.sid,
         user_id: session.userId,
         data: session.data,
         expires_at: session.expiresAt
-      })
-      .onConflict((oc) =>
-        oc.column('sid').doUpdateSet({
-          user_id: session.userId,
-          data: session.data,
-          expires_at: session.expiresAt
-        })
-      )
-      .execute();
+      }),
+      this.driver,
+      ['sid'],
+      {
+        user_id: session.userId,
+        data: session.data,
+        expires_at: session.expiresAt
+      }
+    ).execute();
   }
 
   /** touch 只续期，不重写 data，省下一次大字段写入。 */

@@ -84,6 +84,14 @@ app/
 **repository 每次调用都向 DbManager 索取当前连接**（`BaseRepository` 的 `db` 是 getter），
 绝不在构造时捕获。这正是运行时热切库的支点——切换只是换掉 `DbManager` 里的指针。
 
+**upsert 的语法三方言不通用。** Kysely 的 `onConflict()` 是 PostgreSQL / SQLite 的写法，
+`MysqlQueryCompiler` **不会**把它翻译成 MySQL 的形式——它照原样输出
+`on conflict (...) do update set ...`，MySQL 报 `ER_PARSE_ERROR`。所有 upsert 必须走
+`db/upsert.ts` 的 `upsertRow()`（repository 里用 `this.driver`，`legacyImport` 由调用方传入）。
+这个坑很安静：默认的 SQLite 与 PostgreSQL 都正常，只有 MySQL 会炸，炸的是会话写入、
+设置保存与验证码签发——登录、后台保存、注册三条主路径。`tests/unit/upsert.test.ts`
+用 `DummyDriver` 只编译 SQL 不连库，是这条约束的本地守卫；别把 CI 的 MySQL 矩阵当第一道防线。
+
 **`position` 不落库。** 读取时由 `utils/ranking.ts` 的 `rankEntries()` 计算：积分降序、
 同分共享名次并跳号（1,1,3,4,4,6）、玩家名做稳定 tiebreak。这个顺序出现在公开 API 里，
 改它就是破坏契约。
@@ -121,10 +129,11 @@ PRG（Location 里回显的是提交者自己给的邮箱，不构成信道）�
   什么，所以不构成信道。相应地，这两条路径的成功文案必须是
   `auth.codeSentIfRegistered`（「若该邮箱已注册…」）而不是断定式的「已发送」。
 
-**尚未关闭的信道**（改的话会牺牲可用性，属产品决策）：`POST /verify` 与 `POST /reset`
-对「账号不存在」返回 `code_expired`、对「验证码错误」返回 `code_invalid` + 剩余次数，
-两者文案不同。已用 `codeLimiter` 限流，但要彻底关闭需要把三条码表文案统一并去掉
-「还有 N 次尝试机会」这个提示。
+**`code_expired` / `code_invalid` / `code_locked` 三条文案必须一模一样**，
+且页面上**不展示剩余尝试次数**。它们区分的是「这个邮箱没有账号 / 有账号但码过期 /
+有账号且码错了」——文案一旦不同，拿个乱填的验证码打一次 `POST /verify` 就能读出
+邮箱是否注册过，确定性、无需计时，比 `/forgot` 那条还好用。剩余次数只对真实存在的
+账号才有意义，展示它就是判据。次数仍留在 `AppError` 的 meta 里，可用于日志。
 
 ### 错误与文案
 

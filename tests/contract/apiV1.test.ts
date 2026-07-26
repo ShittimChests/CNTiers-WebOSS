@@ -64,7 +64,7 @@ beforeAll(async () => {
     .db()
     .transaction()
     .execute(async (trx) => {
-      await importLegacyData(trx, data, 'admin');
+      await importLegacyData(trx, data, 'admin', 'sqlite');
     });
 
   settingsService.invalidate();

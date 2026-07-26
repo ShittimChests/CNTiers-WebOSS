@@ -29,10 +29,21 @@ export const ERROR_CODES = {
   current_password_wrong: { status: 400, message: '当前密码不正确' },
   needs_password: { status: 400, message: '请先设置本地密码，否则解绑后将无法登录' },
 
-  // --- 验证码 ---
-  code_expired: { status: 400, message: '验证码已过期，请重新获取' },
-  code_invalid: { status: 400, message: '验证码不正确' },
-  code_locked: { status: 400, message: '错误次数过多，当前验证码已作废，请重新获取' },
+  /*
+   * --- 验证码 ---
+   *
+   * 这三条**必须是同一句话**。它们区分的是「这个邮箱没有账号 / 有账号但码过期
+   * / 有账号且码错了」，一旦文案不同，攻击者拿一个乱填的验证码打一次
+   * POST /verify 或 POST /reset 就能读出邮箱是否注册过——确定性、无需计时、
+   * 比 /forgot 上那条被修掉的信道还好用。
+   *
+   * 代价是用户看不到「还有 N 次尝试机会」。这是有意的取舍：那个计数只对
+   * 真实存在的账号才有意义，展示它就等于回答了账号是否存在。剩余次数仍在
+   * AppError 的 meta 里，需要时可用于日志。
+   */
+  code_expired: { status: 400, message: '验证码不正确或已过期，请重新获取' },
+  code_invalid: { status: 400, message: '验证码不正确或已过期，请重新获取' },
+  code_locked: { status: 400, message: '验证码不正确或已过期，请重新获取' },
   cooldown_active: { status: 429, message: '发送过于频繁，请稍后再试' },
   mail_not_configured: { status: 503, message: '邮件服务尚未配置，暂时无法发送验证码' },
   mail_send_failed: { status: 502, message: '验证码发送失败，请稍后重试' },

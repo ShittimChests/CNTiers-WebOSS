@@ -1,3 +1,4 @@
+import { upsertRow } from '../db/upsert.js';
 import { DEFAULT_SETTINGS, type AppSettings } from '../types/domain.js';
 import { BaseRepository } from './base.js';
 
@@ -31,15 +32,17 @@ export class SettingsRepository extends BaseRepository {
     const entries = Object.entries(patch) as [SettingsKey, unknown][];
     if (entries.length === 0) return;
 
+    const driver = this.driver;
     await this.db.transaction().execute(async (trx) => {
       for (const [key, value] of entries) {
         if (value === undefined) continue;
         const serialized = JSON.stringify(value);
-        await trx
-          .insertInto('settings')
-          .values({ setting_key: key, setting_value: serialized })
-          .onConflict((oc) => oc.column('setting_key').doUpdateSet({ setting_value: serialized }))
-          .execute();
+        await upsertRow(
+          trx.insertInto('settings').values({ setting_key: key, setting_value: serialized }),
+          driver,
+          ['setting_key'],
+          { setting_value: serialized }
+        ).execute();
       }
     });
   }

@@ -49,7 +49,8 @@ beforeAll(async () => {
           entries: await readFixture<LegacyEntry[]>('leaderboard.json'),
           settings: await readFixture<LegacySettings>('settings.json')
         },
-        'admin'
+        'admin',
+        'sqlite'
       );
     });
 

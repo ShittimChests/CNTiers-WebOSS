@@ -16,7 +16,7 @@ import {
   type LegacySettings,
   type LegacyUser
 } from '../../scripts/lib/legacyImport.js';
-import { createTestDb, type TestDb } from '../helpers/testDb.js';
+import { createTestDb, testDbConfig, type TestDb } from '../helpers/testDb.js';
 
 const FIXTURE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../fixtures/legacy');
 
@@ -38,7 +38,7 @@ async function runImport(data: LegacyData = fixture): Promise<ImportReport> {
     .db()
     .transaction()
     .execute(async (trx) => {
-      report = await importLegacyData(trx, data, 'admin');
+      report = await importLegacyData(trx, data, 'admin', testDbConfig().driver);
     });
   if (!report) throw new Error('导入未产出报告');
   return report;

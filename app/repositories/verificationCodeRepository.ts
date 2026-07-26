@@ -1,5 +1,6 @@
 import type { VerificationPurpose } from '../config/constants.js';
 import type { VerificationCodeRow } from '../db/types.js';
+import { upsertRow } from '../db/upsert.js';
 import type { VerificationCode } from '../types/domain.js';
 import { BaseRepository } from './base.js';
 
@@ -47,19 +48,19 @@ export class VerificationCodeRepository extends BaseRepository {
       last_sent_at: input.sentAt
     };
 
-    // onConflict 的列必须与主键一致；三方言下 Kysely 都会编译成各自的 upsert 语法
-    await this.db
-      .insertInto('verification_codes')
-      .values(row)
-      .onConflict((oc) =>
-        oc.columns(['user_id', 'purpose']).doUpdateSet({
-          code_hash: row.code_hash,
-          expires_at: row.expires_at,
-          attempts: 0,
-          last_sent_at: row.last_sent_at
-        })
-      )
-      .execute();
+    // 冲突列必须与主键一致。三方言的 upsert 语法**并不通用**，
+    // 走 upsertRow 而不是直接 onConflict —— 见 db/upsert.ts
+    await upsertRow(
+      this.db.insertInto('verification_codes').values(row),
+      this.driver,
+      ['user_id', 'purpose'],
+      {
+        code_hash: row.code_hash,
+        expires_at: row.expires_at,
+        attempts: 0,
+        last_sent_at: row.last_sent_at
+      }
+    ).execute();
   }
 
   async incrementAttempts(userId: string, purpose: VerificationPurpose): Promise<number> {

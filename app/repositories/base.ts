@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Kysely } from 'kysely';
+import type { DbDriver } from '../db/dialects.js';
 import { dbManager, type DbManager } from '../db/manager.js';
 import type { Database } from '../db/types.js';
 
@@ -15,6 +16,14 @@ export abstract class BaseRepository {
 
   protected get db(): Kysely<Database> {
     return this.manager.db();
+  }
+
+  /**
+   * 当前连接的方言。只有一处需要它：upsert 的语法三方言不通用
+   * （见 db/upsert.ts）。与 `db` 一样每次现取，不在构造时捕获。
+   */
+  protected get driver(): DbDriver {
+    return this.manager.currentConfig().driver;
   }
 }
 

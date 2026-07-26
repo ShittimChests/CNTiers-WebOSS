@@ -233,7 +233,16 @@ describe('注册与验证流程', () => {
     expect(response.text).toContain('value="player1@example.com"');
   });
 
-  it('验证码错误时提示剩余次数', async () => {
+  it('错误的验证码：账号存在与否给出完全相同的响应', async () => {
+    /*
+     * 这是一条比 /forgot 上那条更好用的枚举 oracle：不需要计时、不需要连发两次，
+     * 拿一个乱填的验证码打一次就出结果。它此前是开着的——「账号不存在」走
+     * code_expired（「验证码已过期」），「码错了」走 code_invalid（「验证码不正确，
+     * 还有 N 次尝试机会」），两句话不同。
+     *
+     * 现在三条码表文案已统一，且不再展示剩余次数（剩余次数只对真实存在的账号
+     * 才有意义，展示它就是判据）。代价是用户看不到还剩几次，这是有意的取舍。
+     */
     const agent = agentWithOwnIp();
     const page = await agent.get('/register');
     await agent
@@ -247,14 +256,30 @@ describe('注册与验证流程', () => {
         passwordConfirm: 'correct horse battery'
       });
 
-    const verifyPage = await agent.get('/verify?email=player1@example.com');
-    const response = await agent
-      .post('/verify')
-      .type('form')
-      .send({ _csrf: csrfOf(verifyPage.text), email: 'player1@example.com', code: '000000' });
+    async function submitWrongCode(email: string): Promise<{ status: number; body: string }> {
+      const verifyPage = await agent.get(`/verify?email=${encodeURIComponent(email)}`);
+      const response = await agent
+        .post('/verify')
+        .type('form')
+        .send({ _csrf: csrfOf(verifyPage.text), email, code: '000000' });
+      return {
+        status: response.status,
+        // 抹掉回显的邮箱与每会话令牌：那是提交者自己给的值，不构成信道
+        body: response.text
+          .split(email)
+          .join('<EMAIL>')
+          .replace(/name="_csrf" value="[^"]*"/g, 'CSRF')
+      };
+    }
 
-    expect(response.text).toContain('验证码不正确');
-    expect(response.text).toContain('还有 4 次尝试机会');
+    const existing = await submitWrongCode('player1@example.com');
+    const missing = await submitWrongCode('ghost@example.com');
+
+    expect(existing.status).toBe(missing.status);
+    expect(existing.body).toBe(missing.body);
+    expect(existing.body).toContain('验证码不正确或已过期');
+    // 剩余次数绝不能出现在页面上
+    expect(existing.body).not.toMatch(/还有 \d+ 次/);
   });
 });
 

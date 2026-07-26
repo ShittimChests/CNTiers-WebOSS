@@ -280,16 +280,17 @@ authRouter.post('/verify', codeLimiter, (req, res, next) => {
         next(error);
         return;
       }
-      // 剩余次数由 meta 带出来，拼进提示
-      const attemptsLeft = error.meta['attemptsLeft'];
-      const suffix =
-        typeof attemptsLeft === 'number' ? `，还有 ${String(attemptsLeft)} 次尝试机会` : '';
+      /*
+       * 不拼「还有 N 次尝试机会」。剩余次数只对真实存在的账号才有，展示它就等于
+       * 回答了「这个邮箱注册过没有」——配合三条码表文案已统一（见 errors/codes.ts），
+       * 账号不存在 / 码过期 / 码错误对外是同一句话、同一状态码。
+       */
       renderPage(
         res,
         VerifyPage({
           ctx: viewContext(res),
           email: parsed.data.email,
-          error: `${error.message}${suffix}`
+          error: error.message
         }),
         error.status
       );
@@ -417,15 +418,13 @@ authRouter.post('/reset', codeLimiter, (req, res, next) => {
         next(error);
         return;
       }
-      const attemptsLeft = error.meta['attemptsLeft'];
-      const suffix =
-        typeof attemptsLeft === 'number' ? `，还有 ${String(attemptsLeft)} 次尝试机会` : '';
+      // 同上：不展示剩余次数，否则就是账号枚举的判据
       renderPage(
         res,
         ResetPage({
           ctx: viewContext(res),
           email: parsed.data.email,
-          error: `${error.message}${suffix}`
+          error: error.message
         }),
         error.status
       );
