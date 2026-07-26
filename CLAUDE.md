@@ -2,15 +2,22 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> ## ⚠️ 仓库当前是双栈：新站已建成，等待切换
+> ## ⚠️ 仓库仍是双栈，但入口已切到新站
 >
-> |      | 目录                       | 模块格式                               | 状态                                           |
-> | ---- | -------------------------- | -------------------------------------- | ---------------------------------------------- |
-> | 新站 | `app/` `scripts/` `tests/` | ESM                                    | **已完成 M0–M7，全部门禁绿**。尚未接管线上流量 |
-> | 旧站 | `src/` `views/` `public/`  | CommonJS（靠 `src/package.json` 保护） | 线上跑的仍是它。除修 bug 外不要动              |
+> |      | 目录                       | 模块格式                               | 状态                                             |
+> | ---- | -------------------------- | -------------------------------------- | ------------------------------------------------ |
+> | 新站 | `app/` `scripts/` `tests/` | ESM                                    | **现役**。`start` 与 PM2 `script` 都指向它       |
+> | 旧站 | `src/` `views/` `public/`  | CommonJS（靠 `src/package.json` 保护） | 仅作回滚出口（`npm run start:legacy`）。不要动它 |
 >
-> 切换步骤见文末「上线切换清单」。**在用户明确决定切换之前，不要删除 `src/`/`views/`/`public/`，
-> 也不要改 `package.json` 的 `start` 或 `ecosystem.config.cjs` 的 `script`。**
+> 切换已在 `package.json` 的 `start` 与 `ecosystem.config.cjs` 的 `script` 上落地。
+> **旧站代码尚未删除**——剩余收尾见文末「切换后的收尾」，在用户明确决定之前不要删
+> `src/`/`views/`/`public/`，也不要动 `csurf`/`exceljs`/`ejs`/`nodemon` 这几个依赖。
+>
+> 本仓库是 CNTiers 网站的**开源版本**（`ShittimChests/CNTiers-WebOSS`），AGPL-3.0。
+> 面向用户的字标一律是 **CNTiers**（导航栏用全大写 `CNTIERS`）。唯一的例外在
+> `views/partials/footer.ejs`，那里的「[1.9+] CN Subtiers 测试群」是 QQ 群的真实
+> 名称而非站点字标，不要一起改。`tests/golden/api-v1.json` 里的 `SubtierMaster` /
+> `SubtierGrandmaster` 是段位名，属契约冻结区，更不能动。
 >
 > 新代码的硬性约定：
 >
@@ -26,14 +33,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm run dev            # tsx watch app/server.ts（新站）
 npm run dev:assets     # vite build --watch（改 CSS / 客户端 TS 时另开一个终端）
+npm start              # 现役新站（node dist/server/server.js，需先 build）
+npm run start:legacy   # 回滚出口：node src/server.js
 npm run dev:legacy     # nodemon src/server.js（旧站）
-npm start              # 现役旧站；切换后改用 start:next
-npm run start:next     # node dist/server/server.js（新站生产形态）
 
 npm run build          # vite build（客户端资产）+ tsc（服务端 → dist/server）
 npm run typecheck      # 三份 tsconfig：服务端 / 客户端 / 脚本与测试
-npm run lint           # eslint + stylelint + prettier --check
+npm run lint           # eslint + stylelint + prettier --check（lint:fix 可自动修）
 npm test               # vitest run
+npm run test:watch     # vitest（watch 模式）
 npm run test:repo      # 只跑 repository 测试（CI 会在 PG/MySQL 上重跑同一套）
 
 npm run check:inline   # 视图层不得出现内联样式 / 事件处理器
@@ -45,7 +53,23 @@ npm run db:smoke                 # 数据层手工冒烟
 npm run golden:record            # 重录 API v1 契约基线（只在故意改 API 时）
 ```
 
-生产部署：`pm2 start ecosystem.config.cjs`（应用名 `subtier`，512M 内存重启阈值）。
+跑单个测试用 vitest 自己的过滤器（`npm test` 后面加 `--` 传参）：
+
+```bash
+npm test -- tests/unit/upsert.test.ts       # 单个文件
+npm test -- -t '拒绝没有令牌的 POST'         # 按用例名匹配（跨文件）
+npm test -- tests/integration --coverage    # 一个目录 + 覆盖率
+TEST_DIALECT=postgres TEST_PG_URL=... npm run test:repo   # 换方言重跑 repository 套件
+```
+
+`TEST_DIALECT` 不是 `sqlite` 时 `vitest.config.ts` 会**关掉文件级并行**：PG/MySQL
+下所有测试文件共用同一个 `subtier_test`，而 `createTestDb()` 每个文件开头 drop 全表、
+`db.reset()` 每个 `beforeEach` 清空全表。并行跑的症状很有迷惑性——tiers 读回 `{}`、
+`verification_codes` 撞外键、`delete from entry_tiers` 死锁——别误诊成方言 bug。
+
+生产部署：`npm run build` 后 `pm2 start ecosystem.config.cjs`（应用名 `subtier`，
+fork 单进程，512M 内存重启阈值）。`script` 指向 `dist/server/server.js`，忘了 build
+就是 "Script not found"。
 
 质量门禁是**强制**的，CI 会跑全部上述检查。其中几条容易踩：
 `noUncheckedIndexedAccess` 与 `noPropertyAccessFromIndexSignature`（所以
@@ -277,12 +301,41 @@ CSP 已收紧到 `style-src 'self'`（零内联样式，动态值走属性如 `<
 Resend 与 Microsoft OAuth 都是**手写 fetch，不引 SDK**——两个集成各只用到一两个端点，
 SDK 的收益不抵依赖成本。这个取舍从旧站延续，请勿引入 `resend`、`passport` 等。
 
-## 上线切换清单
+## CI 与发布
 
-新站已通过全部门禁与生产形态冒烟，但**尚未接管流量**。切换需要人工决定时机，步骤：
+`.github/workflows/ci.yml`：push 到 `main`/`dev` 与所有 PR 上跑 lint / typecheck /
+build / test 加三条 check，另有一个 `db-matrix` job 在 PostgreSQL 16 与 MySQL 8 的
+service 容器上重跑 `test:repo`。
+
+`.github/workflows/release.yml`：推 `v*` 标签触发（也可 `workflow_dispatch` 传标签补跑）。
+它**自带一整套门禁**（含同构的 `db-matrix` job，release 依赖它）——`ci.yml` 只监听分支
+push，标签推送不会触发它，所以发布件必须自己验一遍。之后打出
+`cntiers-web-oss-<version>.tar.gz` + `.sha256` 并建 GitHub Release。几个刻意的决定：
+
+- **压缩包不含 `node_modules/`**：`better-sqlite3` 是原生模块，必须在目标机上
+  `npm ci --omit=dev` 现编。包内是 `dist/` + `package.json` + `package-lock.json` +
+  `ecosystem.config.cjs` + `.env.example` + `README` + `LICENSE` + 一个空的 `data/`。
+- 打包前**断言** `package.json` 的 `start` 与 PM2 的 `script` 都指向 `dist/`。包里没有
+  `src/`，这两处一旦指回旧站，发出去的包就是起不来的，而且只有部署的人才会发现。
+- 变更日志走 `gh api .../releases/generate-notes` 自己拼，**没用** `--generate-notes`：
+  它与 `--notes-file` 同时给时谁覆盖谁在不同 `gh` 版本上不一致。
+- 只用 `gh` CLI + `github.token`，不引第三方 action。
+
+## 切换后的收尾
+
+入口已经切到新站（`start` 与 PM2 `script` 都指向 `dist/server/server.js`，PM2 的
+`env: { NODE_ENV: 'production' }` 也已就位）。**尚未做**的只剩：
+
+- 观察外部机器人对 `/api/v1/*` 的调用 48 小时。
+- 稳定后删除 `src/`、`views/`、`public/`、`src/package.json`，并从依赖里移除
+  `csurf`、`exceljs`、`ejs`、`nodemon`；同时删掉 `start:legacy` 与 `dev:legacy`
+  （`start:next` 这个切换期的暂存别名已经清理掉了）。
+
+首次部署到一台新机器时的步骤：
 
 1. **确认服务器 Node ≥ 22**，且 `.env` 里有 `SESSION_SECRET`（≥ 32 字符）**与 `APP_BASE_URL`**
-   （缺任一或密钥过短都会拒绝启动）。
+   （缺任一或密钥过短都会拒绝启动——PM2 会按 `exp_backoff_restart_delay` 反复重启并
+   一直失败，去看 `pm2 logs`）。
 2. 停旧站，**备份 `data/*.json`**。
 3. `npm run db:import -- --dry-run` 看报告，确认用户/条目/定级数量与排名前 10 名一致。
    有「只差大小写的重复账号」时会中止并列出，需人工处理后重跑。
@@ -294,25 +347,20 @@ SDK 的收益不抵依赖成本。这个取舍从旧站延续，请勿引入 `re
    不允许对 SuperAdmin 降级或删除，多出来的那些在后台里动不了——若不是预期结果，
    先改旧数据里的 `role` 再重跑。
 4. `npm run db:import` 正式导入（幂等，可重跑）。
-5. `npm run build`。
-6. 把 `ecosystem.config.cjs` 的 `script` 改为 `dist/server/server.js`，
-   `package.json` 的 `start` 改为 `node dist/server/server.js`，
-   并给 PM2 加上 `env: { NODE_ENV: 'production' }`。
-
-   **`NODE_ENV=production` 这一项不能漏**：`SESSION_SECRET` 与 `APP_BASE_URL` 的强制
-   校验、会话 cookie 的 `Secure`、CSP 的 `upgrade-insecure-requests` 全都挂在它上面。
-   仓库里目前没有任何地方设它（`.env.example` 是 `development`，PM2 配置没有 `env` 块，
-   CI 也不设），所以不显式加的话上面那些保护**一条都不会生效**，而且不会有任何报错。
-   启动日志会打出 `（NODE_ENV=…）`，用它确认。
+5. `npm run build`（`dist/` 不在仓库里，漏了这步 PM2 报 "Script not found"）。
+6. `pm2 start ecosystem.config.cjs`，跑冒烟：首页、`/api/docs`、四个 API 端点、登录、后台。
+   启动日志会打出 `CNTiers 已启动：<url>（NODE_ENV=…）`，用它确认 `NODE_ENV` 真的是
+   `production`——`SESSION_SECRET`/`APP_BASE_URL` 的强制校验、会话 cookie 的 `Secure`、
+   CSP 的 `upgrade-insecure-requests` 全都挂在它上面。它现在由 PM2 配置的 `env` 块提供；
+   若改用别的进程管理器，**必须自己设**，否则这些保护一条都不生效且不会报错
+   （`.env.example` 里是 `development`，CI 也不设）。
 
    **不要顺手加 `instances`**：进程内状态（维护标志、设置缓存、限流计数、DbManager 的
    连接指针）都是每 worker 一份，cluster 模式下一次切库只会移动其中一个 worker 的指针。
 
-7. `pm2 restart subtier`，跑冒烟：首页、`/api/docs`、四个 API 端点、登录、后台。
-8. 观察外部机器人对 `/api/v1/*` 的调用 48 小时。
-9. 稳定后再删除 `src/`、`views/`、`public/`、`src/package.json`，
-   并从依赖里移除 `csurf`、`exceljs`、`ejs`、`nodemon`。
-
 导入**建议在启动新站之前**做：新站启动时会 seed 一个 `admin` 账号，之后导入同名/同邮箱的
 旧账号会走「合并」路径（保留已有 id、更新其余字段）。顺序颠倒不会失败，但报告里会出现
 「与已有账号合并」，属正常。
+
+注意全新库上 `registrationEnabled` 默认 `false`，`/register` 会 404（`registration_disabled`，
+刻意与旧站一致：关站注册时该页「不存在」）。冒烟时看到 404 不是回归，去后台打开即可。
