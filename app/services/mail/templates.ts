@@ -52,7 +52,7 @@ export interface RenderedMail {
 
 export function verificationMail(code: string, recipientName: string): RenderedMail {
   return {
-    subject: 'CN Subtiers 邮箱验证码',
+    subject: 'CNTiers 邮箱验证码',
     html: codeEmailHtml({
       eyebrow: 'SUBTIER STAFF',
       heading: `${recipientName || '玩家'}，欢迎加入`,
@@ -60,13 +60,13 @@ export function verificationMail(code: string, recipientName: string): RenderedM
       code,
       footnote: '如果不是你本人请求的注册，忽略本邮件即可。'
     }),
-    text: `CN Subtiers 邮箱验证码：${code}\n\n5 分钟内有效，仅可使用一次。如果不是你本人请求，忽略本邮件即可。`
+    text: `CNTiers 邮箱验证码：${code}\n\n5 分钟内有效，仅可使用一次。如果不是你本人请求，忽略本邮件即可。`
   };
 }
 
 export function passwordResetMail(code: string, recipientName: string): RenderedMail {
   return {
-    subject: 'CN Subtiers 密码重置验证码',
+    subject: 'CNTiers 密码重置验证码',
     html: codeEmailHtml({
       eyebrow: 'SUBTIER STAFF',
       heading: `${recipientName || '玩家'}，重置你的密码`,
@@ -74,6 +74,6 @@ export function passwordResetMail(code: string, recipientName: string): Rendered
       code,
       footnote: '如果不是你本人请求的，请直接忽略本邮件。'
     }),
-    text: `CN Subtiers 密码重置验证码：${code}\n\n5 分钟内有效，仅可使用一次。如果不是你本人请求，忽略本邮件即可。`
+    text: `CNTiers 密码重置验证码：${code}\n\n5 分钟内有效，仅可使用一次。如果不是你本人请求，忽略本邮件即可。`
   };
 }

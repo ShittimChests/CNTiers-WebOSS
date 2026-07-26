@@ -30,7 +30,7 @@ export function BaseLayout({ title, ctx, description, scripts = [], children }: 
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#0F0C16" />
         {description && <meta name="description" content={description} />}
-        <title>{title} · CN Subtiers</title>
+        <title>{title} · CNTiers</title>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="stylesheet" href={assetUrl('styles/app.css')} />
         <script type="module" src={assetUrl('client/app.ts')} defer />
@@ -52,7 +52,7 @@ export function BaseLayout({ title, ctx, description, scripts = [], children }: 
 
         <footer class="site-footer">
           <div class="container">
-            <p>CN Subtiers · 中文 Minecraft 1.9+ PvP Subtier 榜单</p>
+            <p>CNTiers · 中文 Minecraft 1.9+ PvP Subtier 榜单</p>
             <p>
               <a href="/api/docs">开放 API</a>
             </p>
@@ -93,7 +93,7 @@ function SiteHeader({ ctx }: { ctx: ViewContext }) {
           <span class="brand__mark" aria-hidden="true">
             ◆
           </span>
-          <span class="brand__name">CN SUBTIERS</span>
+          <span class="brand__name">CNTIERS</span>
         </a>
 
         <button

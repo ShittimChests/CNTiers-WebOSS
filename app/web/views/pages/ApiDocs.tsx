@@ -21,7 +21,7 @@ export function ApiDocsPage({ ctx, baseUrl }: ApiDocsProps) {
     <BaseLayout
       title="开放 API"
       ctx={ctx}
-      description="CN Subtiers 的公开只读 JSON 接口说明。"
+      description="CNTiers 的公开只读 JSON 接口说明。"
     >
       <div class="stack docs">
         <div>

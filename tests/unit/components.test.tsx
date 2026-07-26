@@ -198,7 +198,7 @@ describe('BaseLayout', () => {
     expect(html).toContain('<html lang="zh-CN">');
     expect(html).toContain('href="#main"');
     expect(html).toContain('id="main"');
-    expect(html).toContain('<title>测试 · CN Subtiers</title>');
+    expect(html).toContain('<title>测试 · CNTiers</title>');
   });
 
   it('品牌是链接而非 h1——h1 留给页面标题', () => {

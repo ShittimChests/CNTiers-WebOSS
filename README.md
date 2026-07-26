@@ -1,6 +1,10 @@
-# CN Subtiers
+# CNTiers（OSS 版本）
 
 中文 Minecraft 1.9+ PvP Subtier 榜单网站。
+
+本仓库是 **CNTiers 网站的开源版本（Web OSS）**，以 [AGPL-3.0](LICENSE) 发布，
+任何人都可以自行部署一套自己的榜单站点。它不包含官方站点的运营数据，
+`data/` 下只有本地生成的数据库与配置。
 
 - 公开榜单：搜索、多列排序、段位徽章、各细分项目定级
 - 账号体系：注册（邮箱验证码）、密码重置、Microsoft 账户登录与绑定
@@ -44,14 +48,29 @@ npm run db:import                 # 正式导入（幂等，可重跑）
 
 ## 部署
 
+从源码构建：
+
 ```bash
 npm ci
 npm run build
 pm2 start ecosystem.config.cjs
 ```
 
+或者用 [Releases](https://github.com/ShittimChests/CNTiers-WebOSS/releases) 里构建好的压缩包
+（内含 `dist/`，不含 `node_modules/`）：
+
+```bash
+tar -xzf cntiers-web-oss-*.tar.gz && cd cntiers-web-oss-*
+npm ci --omit=dev          # better-sqlite3 在此编译，需要 Node >= 22
+cp .env.example .env
+pm2 start ecosystem.config.cjs
+```
+
 应用名 `subtier`，512M 内存重启阈值。站点设计为跑在 Cloudflare Tunnel 之后
 （`trust proxy` 设为一跳）。
+
+发布流程见 `.github/workflows/release.yml`：推一个 `v*` 标签即跑完整门禁、
+打包并创建 GitHub Release。
 
 ## 数据库
 
@@ -102,3 +121,8 @@ npm run build       # 产物
 
 技术栈：TypeScript、Express 5、Preact（服务端渲染，无 hydration）、Kysely、
 Vite、Vitest。详细架构说明见 `CLAUDE.md`。
+
+## 许可
+
+[GNU AGPL-3.0](LICENSE)。注意 AGPL 的网络条款：如果你修改了本项目并把它部署成
+对外提供服务的站点，需要向使用者提供你那份修改后的源码。

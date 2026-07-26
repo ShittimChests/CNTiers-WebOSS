@@ -62,7 +62,7 @@ async function deliver({ to, subject, html, text }) {
 }
 
 async function sendVerificationCode({ to, code, recipientName }) {
-  const subject = "CN Subtiers 邮箱验证码";
+  const subject = "CNTiers 邮箱验证码";
   const html = codeEmailShell({
     eyebrow: 'SUBTIER STAFF',
     heading: `${recipientName || '玩家'}，欢迎加入`,
@@ -70,12 +70,12 @@ async function sendVerificationCode({ to, code, recipientName }) {
     code,
     footnote: '如果不是你本人请求的注册，忽略本邮件即可。'
   });
-  const text = `CN Subtiers 邮箱验证码：${code}\n\n5 分钟内有效，仅可使用一次。如果不是你本人请求，忽略本邮件即可。`;
+  const text = `CNTiers 邮箱验证码：${code}\n\n5 分钟内有效，仅可使用一次。如果不是你本人请求，忽略本邮件即可。`;
   return deliver({ to, subject, html, text });
 }
 
 async function sendPasswordResetCode({ to, code, recipientName }) {
-  const subject = "CN Subtiers 密码重置验证码";
+  const subject = "CNTiers 密码重置验证码";
   const html = codeEmailShell({
     eyebrow: 'SUBTIER STAFF',
     heading: `${recipientName || '玩家'}，重置你的密码`,
@@ -83,7 +83,7 @@ async function sendPasswordResetCode({ to, code, recipientName }) {
     code,
     footnote: '如果不是你本人请求的，请直接忽略本邮件。'
   });
-  const text = `CN Subtiers 密码重置验证码：${code}\n\n5 分钟内有效，仅可使用一次。如果不是你本人请求，忽略本邮件即可。`;
+  const text = `CNTiers 密码重置验证码：${code}\n\n5 分钟内有效，仅可使用一次。如果不是你本人请求，忽略本邮件即可。`;
   return deliver({ to, subject, html, text });
 }
 
