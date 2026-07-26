@@ -11,8 +11,10 @@ on:
         required: true
         type: string
 
+# 用 ref_name（不带 refs/tags/ 前缀）归一：同一个标签不论从 tag push 还是
+# dispatch 进来都落在同一个组里，不会并发跑两份发布。
 concurrency:
-  group: release-${{ inputs.tag || github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 permissions:
@@ -49,6 +51,16 @@ jobs:
           --health-cmd "mysqladmin ping -h 127.0.0.1 -pci"
           --health-interval 10s --health-timeout 5s --health-retries 10
     steps:
+      # dispatch 只用于对已有标签补跑。标签不存在时 checkout 的报错是三轮
+      # 「git failed with exit code 1」重试，指不出原因，所以先用 API 校验并把话说清楚。
+      - name: Assert tag exists (dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --silent \
+            || { echo "::error title=标签不存在::远端没有 $TAG。workflow_dispatch 只用于对已有标签补跑；首次发布请推标签触发：git tag $TAG && git push origin $TAG"; exit 1; }
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag || github.ref }}
